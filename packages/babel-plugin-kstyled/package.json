@@ -1,6 +1,6 @@
 {
   "name": "babel-plugin-kstyled",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "description": "Babel plugin for kstyled - Build-time style extraction",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
