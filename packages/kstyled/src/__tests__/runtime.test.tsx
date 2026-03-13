@@ -461,7 +461,8 @@ describe('kstyled Runtime Tests', () => {
 
       // Should still push the patch even without caching
       const result = css.__withStyles(metadata);
-      expect(result).toBeDefined();
+      expect(result).toBe(circular);
+      expect(metadata._cachedDynamic).toBeUndefined();
     });
   });
 

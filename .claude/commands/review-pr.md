@@ -92,7 +92,7 @@ When replying to PR comments:
 
 | Format     | Example                 | Result                   |
 | ---------- | ----------------------- | ------------------------ |
-| CORRECT | `Fixed in f3b5fec.`     | Clickable link to commit |
+| CORRECT | Fixed in f3b5fec.       | Clickable link to commit |
 | WRONG   | `Fixed in \`f3b5fec\`.` | Plain text, no link      |
 
 ## Result Report

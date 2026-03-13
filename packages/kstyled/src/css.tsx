@@ -231,11 +231,14 @@ export const css: CssFactory = Object.assign(
               styles.push(dynamicPatch);
             }
           }
-        } catch {
+        } catch (error) {
           // getDynamicPatch({}) may fail when it contains theme-dependent
           // functions (e.g., ({theme}) => theme.bg.basic) since {} has no theme.
           // This is expected for css`` used inside styled components where
           // theme is provided at render time, not at definition time.
+          if (typeof __DEV__ !== 'undefined' && __DEV__) {
+            console.warn('[kstyled] css.__withStyles getDynamicPatch({}) failed:', error);
+          }
         }
       }
 

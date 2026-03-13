@@ -4,7 +4,7 @@ Complete workflow: branch → commit → push → PR
 
 ## Usage
 
-```
+```bash
 /commit [options]
 ```
 
