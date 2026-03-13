@@ -205,24 +205,39 @@ export const css: CssFactory = Object.assign(
       // The dynamic values are captured in the closure when Babel plugin creates this function
       // So SCREEN_WIDTH and other module-level constants work correctly
       if (getDynamicPatch) {
-        const dynamicPatch = getDynamicPatch({});
+        try {
+          const dynamicPatch = getDynamicPatch({});
 
-        if (dynamicPatch && Object.keys(dynamicPatch).length > 0) {
-          // Automatic memoization: Create hash from dynamic values
-          const hash = JSON.stringify(dynamicPatch, (_key, value) =>
-            value === undefined ? '__ks__undefined__' : value
-          );
+          if (dynamicPatch && Object.keys(dynamicPatch).length > 0) {
+            // Automatic memoization: Create hash from dynamic values
+            let hash: string;
+            try {
+              hash = JSON.stringify(dynamicPatch, (_key, value) =>
+                value === undefined ? '__ks__undefined__' : value
+              );
+            } catch {
+              // Fallback for non-serializable values (e.g., circular references on web)
+              hash = '';
+            }
 
-          // Check if we can reuse the cached patch
-          if (metadata._cachedDynamic && metadata._cachedDynamic.hash === hash) {
-            styles.push(metadata._cachedDynamic.patch);
-          } else {
-            // Cache miss: store new patch
-            metadata._cachedDynamic = {
-              patch: dynamicPatch,
-              hash: hash,
-            };
-            styles.push(dynamicPatch);
+            if (hash && metadata._cachedDynamic && metadata._cachedDynamic.hash === hash) {
+              // Check if we can reuse the cached patch
+              styles.push(metadata._cachedDynamic.patch);
+            } else {
+              // Cache miss or non-hashable: store new patch
+              if (hash) {
+                metadata._cachedDynamic = { patch: dynamicPatch, hash };
+              }
+              styles.push(dynamicPatch);
+            }
+          }
+        } catch (error) {
+          // getDynamicPatch({}) may fail when it contains theme-dependent
+          // functions (e.g., ({theme}) => theme.bg.basic) since {} has no theme.
+          // This is expected for css`` used inside styled components where
+          // theme is provided at render time, not at definition time.
+          if (typeof __DEV__ !== 'undefined' && __DEV__) {
+            console.warn('[kstyled] css.__withStyles getDynamicPatch({}) failed:', error);
           }
         }
       }

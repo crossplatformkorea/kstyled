@@ -426,6 +426,44 @@ describe('kstyled Runtime Tests', () => {
       expect(patch.marginTop).toBe(32);
       expect(patch.backgroundColor).toBe('#007AFF');
     });
+
+    test('should not crash when getDynamicPatch throws (theme-dependent css``)', () => {
+      // Simulates compiled css`` with theme interpolation: css`color: ${({theme}) => theme.text.primary}`
+      // When __withStyles calls getDynamicPatch({}), theme is {} so theme.text is undefined
+      const getDynamicPatch = (props: any) => ({
+        color: props.theme.text.primary, // This throws: Cannot read properties of undefined
+      });
+
+      const metadata: any = {
+        getDynamicPatch,
+      };
+
+      // Should not throw - gracefully handles the error
+      expect(() => css.__withStyles(metadata)).not.toThrow();
+
+      // Should return empty styles (no dynamic patch applied)
+      const result = css.__withStyles(metadata);
+      expect(result).toEqual([]);
+    });
+
+    test('should not crash when JSON.stringify encounters circular references', () => {
+      const circular: any = { color: 'red' };
+      circular.self = circular;
+
+      const getDynamicPatch = () => circular;
+
+      const metadata: any = {
+        getDynamicPatch,
+      };
+
+      // Should not throw
+      expect(() => css.__withStyles(metadata)).not.toThrow();
+
+      // Should still push the patch even without caching
+      const result = css.__withStyles(metadata);
+      expect(result).toBe(circular);
+      expect(metadata._cachedDynamic).toBeUndefined();
+    });
   });
 
   describe('Hybrid Styles (Static + Dynamic)', () => {
