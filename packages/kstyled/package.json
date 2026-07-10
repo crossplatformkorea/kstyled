@@ -34,6 +34,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
     "test": "jest --passWithNoTests",
+    "prepublishOnly": "node ../../scripts/assert-ci-publish.js",
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "keywords": [

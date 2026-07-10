@@ -35,8 +35,6 @@
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm publint",
     "publint": "publint packages/kstyled && publint packages/babel-plugin-kstyled",
     "release:check": "pnpm check && pnpm publish:dry",
-    "publish:packages": "pnpm publish -r --filter '!example' --filter '!kstyled-docs' --access public",
-    "publish:beta": "pnpm publish -r --filter '!example' --filter '!kstyled-docs' --access public --tag beta",
     "publish:dry": "pnpm publish -r --filter '!example' --filter '!kstyled-docs' --access public --dry-run --no-git-checks",
     "publish:dry:beta": "pnpm publish -r --filter '!example' --filter '!kstyled-docs' --access public --tag beta --dry-run --no-git-checks",
     "version:beta": "node scripts/bump-version.js beta",

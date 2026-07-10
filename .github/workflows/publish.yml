@@ -70,6 +70,7 @@ jobs:
       - name: Check npm version availability
         if: ${{ !inputs.dry_run }}
         run: |
+          test "$GITHUB_REF" = "refs/heads/main"
           VERSION="${{ steps.version.outputs.version }}"
           if npm view "kstyled@$VERSION" version >/dev/null 2>&1; then
             echo "kstyled@$VERSION is already published"
