@@ -1,52 +1,46 @@
 # kstyled
 
-[![CI](https://github.com/hyodotdev/kstyled/actions/workflows/ci.yml/badge.svg)](https://github.com/hyodotdev/kstyled/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/kstyled.svg)](https://www.npmjs.com/package/kstyled)
-[![npm downloads](https://img.shields.io/npm/dm/kstyled.svg)](https://www.npmjs.com/package/kstyled)
-[![license](https://img.shields.io/npm/l/kstyled.svg)](https://github.com/hyodotdev/kstyled/blob/main/LICENSE)
-
-Runtime library for kstyled. See the [main README](../../README.md) for full documentation.
-
-## Installation
+Runtime and type package for compile-time React Native styling.
 
 ```bash
-pnpm add kstyled
-pnpm add -D babel-plugin-kstyled
+pnpm add kstyled@beta
+pnpm add -D babel-plugin-kstyled@beta
 ```
 
-## Quick Start
+```js
+module.exports = {
+  presets: ['babel-preset-expo'],
+  plugins: [['babel-plugin-kstyled', { strict: true }]],
+};
+```
 
 ```tsx
-import { View, Text } from 'react-native';
-import { styled, ThemeProvider } from 'kstyled';
+import { defineTheme, styled, ThemeProvider } from 'kstyled';
 
-const theme = {
-  colors: { primary: '#007AFF' },
-  space: { md: 16 },
-};
+const theme = defineTheme({
+  colors: { accent: '#0A7A55', onAccent: '#FFFFFF' },
+});
 
-const Button = styled(View)`
-  padding: ${p => p.theme.space.md}px;
-  background-color: ${p => p.theme.colors.primary};
+const Button = styled.Pressable<{ $selected?: boolean }>`
+  min-height: 44px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background-color: ${(p) => (p.$selected ? p.theme.colors.accent : '#E8ECEA')};
 `;
 
-export default function App() {
+export function App() {
   return (
     <ThemeProvider theme={theme}>
-      <Button>
-        <Text>Hello!</Text>
-      </Button>
+      <Button $selected accessibilityRole="button" />
     </ThemeProvider>
   );
 }
 ```
 
-Don't forget to add the Babel plugin to `babel.config.js`:
+The Babel plugin extracts static declarations, compiles inline `css` templates,
+and retains only the dynamic values that must be evaluated at render time.
+Transient `$props` are filtered before native props are forwarded.
 
-```js
-module.exports = {
-  plugins: [
-    ['babel-plugin-kstyled', { debug: false }],
-  ],
-};
-```
+Full guides and release notes are available in the
+[repository](https://github.com/crossplatformkorea/kstyled) and
+[documentation](https://crossplatformkorea.github.io/kstyled).

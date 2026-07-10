@@ -1,12 +1,12 @@
 import type { ComponentType } from 'react';
+import type { ViewStyle, TextStyle, ImageStyle, StyleProp } from 'react-native';
 import type {
-  ViewStyle,
-  TextStyle,
-  ImageStyle,
-  StyleProp,
-  RegisteredStyle,
-} from 'react-native';
-import type { CompiledStyles, AttrsFunction, Interpolation, StyledComponent } from '../types';
+  AttrsFunction,
+  CompiledStyle,
+  CompiledStyles,
+  Interpolation,
+  StyledComponent,
+} from '../types';
 
 /**
  * Union of all React Native style types
@@ -31,7 +31,7 @@ export type StyleValue = StyleProp<StyleObject>;
 /**
  * Array of style values for React Native components
  */
-export type StyleArray = Array<StyleObject | RegisteredStyle<StyleObject> | number | false | null | undefined>;
+export type StyleArray = Array<CompiledStyle | false | null | undefined>;
 
 /**
  * Props with style property
@@ -50,12 +50,16 @@ export type PropsWithTheme = Record<string, unknown> & {
 /**
  * Function that computes dynamic styles based on props
  */
-export type DynamicPatchFunction = (props: PropsWithTheme) => StyleObject | null;
+export type DynamicPatchFunction = (
+  props: PropsWithTheme
+) => StyleObject | null;
 
 /**
  * Attrs value that can be a static object or a function
  */
-export type AttrsValue = Record<string, unknown> | ((props: PropsWithTheme) => Record<string, unknown>);
+export type AttrsValue =
+  | Record<string, unknown>
+  | ((props: PropsWithTheme) => Record<string, unknown>);
 
 /**
  * Metadata injected by Babel plugin or runtime parser
@@ -65,6 +69,9 @@ export interface StyleMetadata {
   styleKeys?: string[];
   getDynamicPatch?: DynamicPatchFunction;
   attrs?: AttrsValue;
+  /** Ultimate render target used to collapse nested styled wrappers. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  target?: ComponentType<any>;
 }
 
 /**
@@ -78,8 +85,12 @@ export interface ComponentWithMetadata {
  * Factory that returns a styled component builder
  * AttrsP tracks which props were added via .attrs()
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type
-export interface StyledFactory<C extends ComponentType<any>, P = {}, AttrsP = {}> {
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */
+export interface StyledFactory<
+  C extends ComponentType<any>,
+  P = {},
+  AttrsP = {},
+> {
   /**
    * Method called by Babel plugin with extracted styles
    */
@@ -98,16 +109,24 @@ export interface StyledFactory<C extends ComponentType<any>, P = {}, AttrsP = {}
    */
   (
     strings: TemplateStringsArray,
-    ...interpolations: Array<Interpolation<P & { theme: import('../types').DefaultTheme }> | string | number>
+    ...interpolations: Array<
+      | Interpolation<P & { theme: import('../types').DefaultTheme }>
+      | string
+      | number
+    >
   ): StyledComponent<C, P, AttrsP>;
 
   /**
    * Allow specifying props type via generic
    * This enables: styled(View)<{ $active: boolean }>`...`
    */
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   <NewP = {}>(
     strings: TemplateStringsArray,
-    ...interpolations: Array<Interpolation<NewP & { theme: import('../types').DefaultTheme }> | string | number>
+    ...interpolations: Array<
+      | Interpolation<NewP & { theme: import('../types').DefaultTheme }>
+      | string
+      | number
+    >
   ): StyledComponent<C, NewP, AttrsP>;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */

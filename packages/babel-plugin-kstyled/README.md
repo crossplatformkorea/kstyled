@@ -1,76 +1,62 @@
 # babel-plugin-kstyled
 
-[![CI](https://github.com/hyodotdev/kstyled/actions/workflows/ci.yml/badge.svg)](https://github.com/hyodotdev/kstyled/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/babel-plugin-kstyled.svg)](https://www.npmjs.com/package/babel-plugin-kstyled)
-[![npm downloads](https://img.shields.io/npm/dm/babel-plugin-kstyled.svg)](https://www.npmjs.com/package/babel-plugin-kstyled)
-[![license](https://img.shields.io/npm/l/babel-plugin-kstyled.svg)](https://github.com/hyodotdev/kstyled/blob/main/LICENSE)
-
-Babel transformation plugin for kstyled. Extracts styles from template literals and compiles them to `StyleSheet.create` at build time.
-
-## Installation
+Compile `kstyled` and inline `css` templates to React Native style expressions.
 
 ```bash
-pnpm add -D babel-plugin-kstyled
+pnpm add -D babel-plugin-kstyled@beta
 ```
 
-## Configuration
-
-Add to your `babel.config.js`:
-
 ```js
+// babel.config.js
 module.exports = {
   presets: ['babel-preset-expo'],
   plugins: [
-    ['babel-plugin-kstyled', {
-      // Enable debug logging
-      debug: false,
-
-      // Custom import name
-      importName: 'kstyled',
-
-      // Platform-specific styles
-      platformStyles: true,
-
-      // Auto-hoist inline styles
-      autoHoist: false,
-    }],
+    [
+      'babel-plugin-kstyled',
+      {
+        strict: true,
+        debug: false,
+        importName: 'kstyled',
+      },
+    ],
   ],
 };
 ```
 
-## How It Works
+## Output
 
-The plugin transforms styled template literals:
-
-**Input:**
 ```tsx
 const Button = styled(Pressable)`
-  padding: 16px;
-  background-color: ${p => p.theme.colors.primary};
+  min-height: 44px;
+  background-color: ${(p) => (p.$active ? '#0A7A55' : '#687078')};
 `;
 ```
 
-**Output:**
+is reduced to the equivalent of:
+
 ```tsx
-const __ks_0 = StyleSheet.create({
-  s0: { padding: 16 }
+const __ks0 = StyleSheet.create({
+  base: { minHeight: 44 },
 });
 
-const Button = __injectKStyledMetadata(
-  styled(Pressable)`...`,
-  {
-    compiledStyles: __ks_0,
-    styleKeys: ['s0'],
-    getDynamicPatch: (p) => ({ backgroundColor: p.theme.colors.primary })
-  }
-);
+const Button = styled(Pressable).__withStyles({
+  compiledStyles: __ks0,
+  styleKeys: ['base'],
+  getDynamicPatch: (p) => ({
+    backgroundColor: p.$active ? '#0A7A55' : '#687078',
+  }),
+});
 ```
 
-## Plugin Options
+Function-scoped `css` templates compile directly to a registered static style,
+a dynamic object, or an array containing both. They do not invoke the runtime
+CSS parser when the plugin is configured.
 
-- `debug`: Enable console logging (default: `false`)
-- `importName`: Package name to transform (default: `'kstyled'`)
-- `platformStyles`: Enable `@android`/`@ios` blocks (default: `true`)
-- `autoHoist`: Auto-hoist inline styles (default: `false`)
+## Options
 
-See the [main README](../../README.md) for full documentation.
+- `strict`: fail the build when a matched template cannot be compiled.
+- `debug`: print compiler diagnostics.
+- `importName`: compile imports from a package alias instead of `kstyled`.
+
+Full documentation is available at
+[crossplatformkorea.github.io/kstyled](https://crossplatformkorea.github.io/kstyled).

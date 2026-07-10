@@ -103,16 +103,16 @@ export default function App() {
 ```tsx
 // ✅ Correct - use $ prefix
 const Button = styled.Pressable`
-  background-color: ${(p) => p.$variant === 'primary' ? 'blue' : 'gray'};
+  background-color: ${(p) => (p.$variant === 'primary' ? 'blue' : 'gray')};
 `;
 
-<Button $variant="primary" />
+<Button $variant="primary" />;
 
 // ❌ Wrong - no $ prefix
 const Button = styled.Pressable`
-  background-color: ${(p) => p.variant === 'primary' ? 'blue' : 'gray'};
+  background-color: ${(p) => (p.variant === 'primary' ? 'blue' : 'gray')};
 `;
-<Button variant="primary" /> // Won't work, variant passed to component
+<Button variant="primary" />; // Won't work, variant passed to component
 ```
 
 ### CSS inline not parsing
@@ -127,13 +127,17 @@ const Button = styled.Pressable`
 import { css } from 'kstyled';
 
 // ✅ Correct - use in style prop
-<View style={css`
-  padding: 16px;
-  background-color: ${color};
-`} />
+<View
+  style={css`
+    padding: 16px;
+    background-color: ${color};
+  `}
+/>;
 
 // ❌ Wrong - trying to use outside style prop
-const styles = css`padding: 16px;`; // Won't work as expected
+const styles = css`
+  padding: 16px;
+`; // Won't work as expected
 ```
 
 ## Performance Issues
@@ -145,23 +149,25 @@ const styles = css`padding: 16px;`; // Won't work as expected
 **Investigation**:
 
 1. **Check if using too many dynamic styles**:
+
    ```tsx
    // ❌ Bad - everything is dynamic
    const Card = styled.View`
-     padding: ${(p) => p.$size === 'small' ? '8px' : '16px'};
-     margin: ${(p) => p.$size === 'small' ? '4px' : '8px'};
+     padding: ${(p) => (p.$size === 'small' ? '8px' : '16px')};
+     margin: ${(p) => (p.$size === 'small' ? '4px' : '8px')};
      background: ${(p) => p.$color};
    `;
 
    // ✅ Better - static styles extracted
    const Card = styled.View`
-     border-radius: 8px;  /* Static */
-     padding: ${(p) => p.$size === 'small' ? '8px' : '16px'};
+     border-radius: 8px; /* Static */
+     padding: ${(p) => (p.$size === 'small' ? '8px' : '16px')};
      background: ${(p) => p.$color};
    `;
    ```
 
 2. **Use StyleSheet for purely static styles**:
+
    ```tsx
    // For large static style objects, use StyleSheet directly
    import { StyleSheet } from 'react-native';
@@ -231,8 +237,8 @@ interface ButtonProps extends ViewProps {
 
 // Use with styled
 const Button = styled.Pressable<ButtonProps>`
-  background-color: ${(p) => p.$variant === 'primary' ? 'blue' : 'gray'};
-  padding: ${(p) => p.$size === 'small' ? '8px' : '16px'};
+  background-color: ${(p) => (p.$variant === 'primary' ? 'blue' : 'gray')};
+  padding: ${(p) => (p.$size === 'small' ? '8px' : '16px')};
 `;
 ```
 
@@ -266,14 +272,16 @@ import { Platform } from 'react-native';
 
 const Card = styled.View`
   /* iOS shadow */
-  ${Platform.OS === 'ios' && `
+  ${Platform.OS === 'ios' &&
+  `
     shadow-color: #000;
     shadow-opacity: 0.1;
     shadow-radius: 8px;
   `}
 
   /* Android shadow */
-  ${Platform.OS === 'android' && `
+  ${Platform.OS === 'android' &&
+  `
     elevation: 4;
   `}
 `;
@@ -288,9 +296,12 @@ Enable debug mode to see Babel transformations:
 module.exports = {
   presets: ['module:metro-react-native-babel-preset'],
   plugins: [
-    ['babel-plugin-kstyled', {
-      debug: true  // Enable debug logs
-    }],
+    [
+      'babel-plugin-kstyled',
+      {
+        debug: true, // Enable debug logs
+      },
+    ],
   ],
 };
 ```
@@ -308,12 +319,14 @@ Then check Metro logs for transformation output.
    npx react-native start --reset-cache
    ```
 3. **Check versions**:
+
    ```bash
    npm list kstyled babel-plugin-kstyled
    ```
+
    Both should be the same version.
 
-4. **File an issue**: [GitHub Issues](https://github.com/hyodotdev/kstyled/issues)
+4. **File an issue**: [GitHub Issues](https://github.com/crossplatformkorea/kstyled/issues)
    - Include error messages
    - Include babel.config.js
    - Include minimal reproduction code

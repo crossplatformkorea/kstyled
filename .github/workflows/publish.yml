@@ -3,19 +3,23 @@ name: Publish
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version bump type'
+      tag:
+        description: npm dist-tag
         required: true
         type: choice
+        default: beta
         options:
-          - patch
-          - minor
-          - major
-      dry-run:
-        description: 'Dry run (test without publishing)'
+          - beta
+          - latest
+      dry_run:
+        description: Validate package contents without publishing
         required: false
         type: boolean
-        default: false
+        default: true
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -30,98 +34,87 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-          # Trusted Publishers (OIDC) 사용 - NPM_TOKEN 불필요
+          registry-url: https://registry.npmjs.org
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build packages
-        run: pnpm build
+      - name: Run release checks
+        run: pnpm check
 
-      - name: Run type check
-        run: pnpm typecheck
-
-      - name: Run tests
-        run: pnpm test
-
-      - name: Bump version
-        if: ${{ !inputs.dry-run }}
-        run: |
-          case "${{ inputs.version }}" in
-            patch)
-              pnpm version:patch
-              ;;
-            minor)
-              pnpm version:minor
-              ;;
-            major)
-              pnpm version:major
-              ;;
-          esac
-
-      - name: Get new version
-        if: ${{ !inputs.dry-run }}
+      - name: Read and validate version
         id: version
         run: |
           VERSION=$(node -p "require('./packages/kstyled/package.json').version")
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "New version: $VERSION"
+          PLUGIN_VERSION=$(node -p "require('./packages/babel-plugin-kstyled/package.json').version")
+          test "$VERSION" = "$PLUGIN_VERSION"
+          if [ "${{ inputs.tag }}" = "beta" ]; then
+            node -e "if (!/-beta\\.\\d+$/.test(process.argv[1])) process.exit(1)" "$VERSION"
+          else
+            node -e "if (process.argv[1].includes('-')) process.exit(1)" "$VERSION"
+          fi
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Commit version bump
-        if: ${{ !inputs.dry-run }}
+      - name: Check npm version availability
+        if: ${{ !inputs.dry_run }}
         run: |
-          git add .
-          git commit -m "chore: release v${{ steps.version.outputs.VERSION }}"
-          git tag v${{ steps.version.outputs.VERSION }}
+          VERSION="${{ steps.version.outputs.version }}"
+          if npm view "kstyled@$VERSION" version >/dev/null 2>&1; then
+            echo "kstyled@$VERSION is already published"
+            exit 1
+          fi
+          if npm view "babel-plugin-kstyled@$VERSION" version >/dev/null 2>&1; then
+            echo "babel-plugin-kstyled@$VERSION is already published"
+            exit 1
+          fi
 
-      - name: Publish to npm (dry-run)
-        if: ${{ inputs.dry-run }}
-        run: pnpm publish:dry
-
-      - name: Ensure npm 11.5.1 or later
-        if: ${{ !inputs.dry-run }}
-        run: npm install -g npm@latest
-
-      - name: Publish kstyled to npm
-        if: ${{ !inputs.dry-run }}
-        run: npm publish --access public --provenance
-        working-directory: ./packages/kstyled
-
-      - name: Publish babel-plugin-kstyled to npm
-        if: ${{ !inputs.dry-run }}
-        run: npm publish --access public --provenance
-        working-directory: ./packages/babel-plugin-kstyled
-
-      - name: Push changes
-        if: ${{ !inputs.dry-run }}
+      - name: Validate package tarballs
         run: |
-          git push origin main
-          git push origin v${{ steps.version.outputs.VERSION }}
+          if [ "${{ inputs.tag }}" = "beta" ]; then
+            pnpm publish:dry:beta
+          else
+            pnpm publish:dry
+          fi
 
-      - name: Create GitHub Release
-        if: ${{ !inputs.dry-run && steps.version.outputs.VERSION }}
+      - name: Ensure npm supports trusted publishing
+        if: ${{ !inputs.dry_run }}
+        run: npm install --global npm@latest
+
+      - name: Publish kstyled
+        if: ${{ !inputs.dry_run }}
+        working-directory: packages/kstyled
+        run: npm publish --access public --tag "${{ inputs.tag }}" --provenance
+
+      - name: Publish Babel plugin
+        if: ${{ !inputs.dry_run }}
+        working-directory: packages/babel-plugin-kstyled
+        run: npm publish --access public --tag "${{ inputs.tag }}" --provenance
+
+      - name: Tag release
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub release
+        if: ${{ !inputs.dry_run }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.VERSION }}
-          name: v${{ steps.version.outputs.VERSION }}
-          draft: false
-          prerelease: false
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          prerelease: ${{ inputs.tag != 'latest' }}
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

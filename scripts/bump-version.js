@@ -3,63 +3,93 @@
 const fs = require('fs');
 const path = require('path');
 
-const bumpType = process.argv[2] || 'patch';
+const args = process.argv.slice(2);
+const bumpType = args.find((argument) => !argument.startsWith('--')) || 'patch';
+const dryRun = args.includes('--dry-run');
 const packagesDir = path.join(__dirname, '..', 'packages');
+const supportedBumpTypes = ['beta', 'release', 'patch', 'minor', 'major'];
+
+if (!supportedBumpTypes.includes(bumpType)) {
+  throw new Error(
+    `Unsupported bump type: ${bumpType}. ` +
+      `Expected one of: ${supportedBumpTypes.join(', ')}`
+  );
+}
 
 function incrementVersion(version, type) {
-  const parts = version.split('.').map(Number);
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-([a-z]+)\.(\d+))?$/);
+  if (!match) {
+    throw new Error(`Unsupported version: ${version}`);
+  }
+
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+  const prerelease = match[4];
+  const prereleaseNumber = match[5] ? Number(match[5]) : 0;
+
   switch (type) {
+    case 'beta':
+      return prerelease === 'beta'
+        ? `${major}.${minor}.${patch}-beta.${prereleaseNumber + 1}`
+        : `${major}.${minor + 1}.0-beta.1`;
+    case 'release':
+      return prerelease ? `${major}.${minor}.${patch}` : version;
     case 'major':
-      return `${parts[0] + 1}.0.0`;
+      return `${major + 1}.0.0`;
     case 'minor':
-      return `${parts[0]}.${parts[1] + 1}.0`;
+      return `${major}.${minor + 1}.0`;
     case 'patch':
+      return prerelease
+        ? `${major}.${minor}.${patch}`
+        : `${major}.${minor}.${patch + 1}`;
     default:
-      return `${parts[0]}.${parts[1]}.${parts[2] + 1}`;
+      throw new Error(`Unsupported bump type: ${type}`);
   }
 }
 
-function updatePackageVersion(packagePath) {
-  const packageJsonPath = path.join(packagePath, 'package.json');
+const packages = fs
+  .readdirSync(packagesDir)
+  .map((name) => path.join(packagesDir, name, 'package.json'))
+  .filter((packageJsonPath) => fs.existsSync(packageJsonPath))
+  .map((packageJsonPath) => ({
+    packageJsonPath,
+    packageJson: JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')),
+  }))
+  .filter(({ packageJson }) => packageJson.name !== 'kstyled-docs');
 
-  if (!fs.existsSync(packageJsonPath)) {
-    return null;
-  }
-
-  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-
-  // Skip example and docs packages
-  if (packageJson.name === 'example' || packageJson.name === 'kstyled-docs') {
-    return null;
-  }
-
-  const oldVersion = packageJson.version;
-  const newVersion = incrementVersion(oldVersion, bumpType);
-
-  packageJson.version = newVersion;
-
-  fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf8');
-
-  console.log(`${packageJson.name}: ${oldVersion} -> ${newVersion}`);
-
-  return { name: packageJson.name, oldVersion, newVersion };
+const versions = new Set(
+  packages.map(({ packageJson }) => packageJson.version)
+);
+if (versions.size !== 1) {
+  throw new Error(
+    `Package versions are out of sync: ${Array.from(versions).join(', ')}`
+  );
 }
 
-// Get all packages
-const packages = fs.readdirSync(packagesDir).filter(name => {
-  const packagePath = path.join(packagesDir, name);
-  return fs.statSync(packagePath).isDirectory();
-});
+const oldVersion = packages[0]?.packageJson.version;
+if (!oldVersion) {
+  throw new Error('No versioned packages found');
+}
+
+const newVersion = incrementVersion(oldVersion, bumpType);
 
 console.log(`Bumping ${bumpType} version for all packages...\n`);
 
-let newVersion = null;
-packages.forEach(packageName => {
-  const packagePath = path.join(packagesDir, packageName);
-  const result = updatePackageVersion(packagePath);
-  if (result && !newVersion) {
-    newVersion = result.newVersion;
+for (const { packageJsonPath, packageJson } of packages) {
+  packageJson.version = newVersion;
+  if (!dryRun) {
+    fs.writeFileSync(
+      packageJsonPath,
+      `${JSON.stringify(packageJson, null, 2)}\n`,
+      'utf8'
+    );
   }
-});
+  console.log(`${packageJson.name}: ${oldVersion} -> ${newVersion}`);
+}
+
+if (dryRun) {
+  console.log('\nDry run: no files were changed.');
+}
 
 console.log(`\nNew version: ${newVersion}`);

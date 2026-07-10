@@ -12,8 +12,27 @@ import babelPlugin from '../../../babel-plugin-kstyled/src/index';
 
 // Helper to transform and execute code
 function transformAndExecute(code: string) {
-  const transformResult = transformSync(code, {
-    plugins: [[babelPlugin, { debug: false }]],
+  const source = `
+    import { styled, css } from 'kstyled';
+    import { StyleSheet } from 'react-native';
+    ${code}
+  `;
+  const stripImports = () => ({
+    visitor: {
+      Program: {
+        exit(path: any) {
+          for (const statement of path.get('body')) {
+            if (statement.isImportDeclaration()) {
+              statement.remove();
+            }
+          }
+        },
+      },
+    },
+  });
+
+  const transformResult = transformSync(source, {
+    plugins: [[babelPlugin, { debug: false, strict: true }], stripImports],
     filename: 'test.tsx',
     presets: ['@babel/preset-typescript', '@babel/preset-react'],
   });
@@ -29,6 +48,7 @@ function transformAndExecute(code: string) {
     Pressable,
     Text,
     StyleSheet,
+    _StyleSheet: StyleSheet,
     styled: undefined,
     css: undefined,
     exports: {},
@@ -100,10 +120,14 @@ describe('End-to-End Tests', () => {
       const styles = metadata.compiledStyles[styleKey];
 
       // Shorthand should be expanded
-      expect(styles.paddingVertical).toBe(14);
-      expect(styles.paddingHorizontal).toBe(20);
-      expect(styles.marginVertical).toBe(8);
-      expect(styles.marginHorizontal).toBe(12);
+      expect(styles.paddingTop).toBe(14);
+      expect(styles.paddingRight).toBe(20);
+      expect(styles.paddingBottom).toBe(14);
+      expect(styles.paddingLeft).toBe(20);
+      expect(styles.marginTop).toBe(8);
+      expect(styles.marginRight).toBe(12);
+      expect(styles.marginBottom).toBe(8);
+      expect(styles.marginLeft).toBe(12);
     });
   });
 
@@ -156,7 +180,10 @@ describe('End-to-End Tests', () => {
       expect(styles.padding).toBe(16);
 
       // Dynamic patches
-      const patch1 = metadata.getDynamicPatch({ $visible: true, $color: 'red' });
+      const patch1 = metadata.getDynamicPatch({
+        $visible: true,
+        $color: 'red',
+      });
       expect(patch1.opacity).toBe(1);
       expect(patch1.backgroundColor).toBe('red');
 
@@ -192,14 +219,22 @@ describe('End-to-End Tests', () => {
       expect(metadata.styleKeys.length).toBeGreaterThan(0);
 
       // Verify that at least some expected styles exist
-      const allStyles: Record<string, any> = Object.values(metadata.compiledStyles).reduce(
+      const allStyles: Record<string, any> = Object.values(
+        metadata.compiledStyles
+      ).reduce(
         (acc: Record<string, any>, style: any) => ({ ...acc, ...style }),
         {}
       );
 
       // Should have borderRadius and backgroundColor
-      expect(allStyles.borderRadius !== undefined || allStyles.backgroundColor !== undefined).toBe(true);
-      expect(allStyles.borderWidth !== undefined || allStyles.backgroundColor !== undefined).toBe(true);
+      expect(
+        allStyles.borderRadius !== undefined ||
+          allStyles.backgroundColor !== undefined
+      ).toBe(true);
+      expect(
+        allStyles.borderWidth !== undefined ||
+          allStyles.backgroundColor !== undefined
+      ).toBe(true);
     });
   });
 
@@ -245,6 +280,24 @@ describe('End-to-End Tests', () => {
       expect(flatStyles.color).toBe('#007AFF');
     });
 
+    test('should normalize string numbers in compiled dynamic css``', () => {
+      const code = `
+        const loading = false;
+        const result = css\`
+          opacity: \${loading ? '0' : '1'};
+          transform: scale(\${'1.5'});
+        \`;
+      `;
+
+      const styles = transformAndExecute(code);
+      const flatStyles = Array.isArray(styles)
+        ? StyleSheet.flatten(styles)
+        : styles;
+
+      expect(flatStyles.opacity).toBe(1);
+      expect(flatStyles.transform).toEqual([{ scale: 1.5 }]);
+    });
+
     test('should memoize css`` with constants', () => {
       const code = `
         const SCREEN_WIDTH = 375;
@@ -266,14 +319,37 @@ describe('End-to-End Tests', () => {
 
       const { styles1, styles2 } = transformAndExecute(code);
 
-      const flat1 = Array.isArray(styles1) ? StyleSheet.flatten(styles1) : styles1;
-      const flat2 = Array.isArray(styles2) ? StyleSheet.flatten(styles2) : styles2;
+      const flat1 = Array.isArray(styles1)
+        ? StyleSheet.flatten(styles1)
+        : styles1;
+      const flat2 = Array.isArray(styles2)
+        ? StyleSheet.flatten(styles2)
+        : styles2;
 
       // Both should have the same values
       expect(flat1.width).toBe(375);
       expect(flat1.height).toBe(187.5);
       expect(flat2.width).toBe(375);
       expect(flat2.height).toBe(187.5);
+    });
+
+    test('should compile css`` inside a function without runtime parsing', () => {
+      const code = `
+        function getStyle(isActive) {
+          return css\`
+            padding: 12px;
+            color: \${isActive ? '#0A7A55' : '#687078'};
+          \`;
+        }
+
+        const result = getStyle(true);
+      `;
+
+      const styles = transformAndExecute(code);
+      expect(StyleSheet.flatten(styles)).toMatchObject({
+        padding: 12,
+        color: '#0A7A55',
+      });
     });
   });
 
@@ -327,13 +403,18 @@ describe('End-to-End Tests', () => {
       // Check static styles
       const styleKey = metadata.styleKeys[0];
       const styles = metadata.compiledStyles[styleKey];
-      expect(styles.paddingVertical).toBe(14);
-      expect(styles.paddingHorizontal).toBe(20);
+      expect(styles.paddingTop).toBe(14);
+      expect(styles.paddingRight).toBe(20);
+      expect(styles.paddingBottom).toBe(14);
+      expect(styles.paddingLeft).toBe(20);
       expect(styles.borderRadius).toBe(8);
       expect(styles.alignItems).toBe('center');
 
       // Check dynamic styles
-      const primaryPatch = metadata.getDynamicPatch({ $variant: 'primary', $disabled: false });
+      const primaryPatch = metadata.getDynamicPatch({
+        $variant: 'primary',
+        $disabled: false,
+      });
       expect(primaryPatch.backgroundColor).toBe('#007AFF');
       expect(primaryPatch.opacity).toBe(1);
 
@@ -360,10 +441,14 @@ describe('End-to-End Tests', () => {
       const styles = metadata.compiledStyles[styleKey];
 
       // Should handle mixed units correctly
-      expect(styles.paddingVertical).toBe(16);
-      expect(styles.paddingHorizontal).toBe(24);
-      expect(styles.marginVertical).toBe(8);
-      expect(styles.marginHorizontal).toBe(12);
+      expect(styles.paddingTop).toBe(16);
+      expect(styles.paddingRight).toBe(24);
+      expect(styles.paddingBottom).toBe(16);
+      expect(styles.paddingLeft).toBe(24);
+      expect(styles.marginTop).toBe(8);
+      expect(styles.marginRight).toBe(12);
+      expect(styles.marginBottom).toBe(8);
+      expect(styles.marginLeft).toBe(12);
       expect(styles.borderRadius).toBe(8);
       expect(styles.borderWidth).toBe(1);
     });
@@ -410,7 +495,9 @@ describe('End-to-End Tests', () => {
       expect(metadata.compiledStyles).toBeDefined();
 
       // Should have both base and extended styles
-      const allStyles: Record<string, any> = Object.values(metadata.compiledStyles).reduce(
+      const allStyles: Record<string, any> = Object.values(
+        metadata.compiledStyles
+      ).reduce(
         (acc: Record<string, any>, style: any) => ({ ...acc, ...style }),
         {}
       );

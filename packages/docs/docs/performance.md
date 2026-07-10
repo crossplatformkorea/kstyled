@@ -4,284 +4,77 @@ sidebar_position: 5
 
 # Performance
 
-## Benchmark results
+kstyled optimizes the work it can prove is static and keeps dynamic behavior
+explicit. It does not claim a zero-runtime component model: refs, attrs, themes,
+transient props, composed components, and prop-based styles still need a small
+runtime layer.
 
-kstyled transforms styles at compile time, resulting in zero runtime overhead compared to traditional CSS-in-JS libraries.
+## Execution paths
 
-### Bundle size comparison
+### Static styles
 
-| Library                      | Minified | Gzipped | Packages Required                                                               |
-| ---------------------------- | -------- | ------- | ------------------------------------------------------------------------------- |
-| **kstyled**                  | 8.1 KB   | 2.9 KB  | 1 package: `kstyled`                                                            |
-| **@emotion/native**          | 14.8 KB  | 5.4 KB  | 3 packages: `@emotion/native` + `@emotion/primitives-core` + `@emotion/react`\* |
-| **styled-components/native** | 20.4 KB  | 7.7 KB  | 1 package: `styled-components` (includes both web & native)                     |
-
-_\*@emotion/react is a required peer dependency for @emotion/native to work_
-
-**Key insights:**
-
-- **kstyled is the smallest** at 8.1 KB (2.9 KB gzipped) with everything in one package
-- **@emotion/native requires 3 packages** totaling 14.8 KB (5.4 KB gzipped):
-  - `@emotion/native`: 1.2 KB (0.6 KB gzipped)
-  - `@emotion/primitives-core`: 6.6 KB (2.3 KB gzipped)
-  - `@emotion/react`: 7.0 KB (2.4 KB gzipped)
-- **styled-components** is 20.4 KB (7.7 KB gzipped) in one package with the most complete feature set
-  - Includes both web and native in the same npm package
-  - Use `styled-components/native` import path for React Native
-
-_Additional note: styled-components and emotion also depend on `css-to-react-native` (~25 KB) for runtime CSS parsing._
-
-### Rendering performance
-
-kstyled uses native `StyleSheet.create()` which is optimized by React Native:
-
-- **Static styles**: Pre-compiled to StyleSheet objects (zero runtime cost)
-- **Dynamic styles**: Minimal runtime computation for prop-based styles
-- **No parsing**: CSS is parsed at build time, not runtime
-
-## When kstyled shines
-
-kstyled provides the most benefit in these scenarios:
-
-### Large lists
-
-Rendering many components with complex styles:
+The Babel plugin parses static template declarations at build time and emits a
+registered `StyleSheet` reference. Rendering does not parse the CSS template.
 
 ```tsx
-const Item = styled.View`
-  padding: 16px;
-  border-radius: 8px;
-  background-color: white;
-  shadow-color: #000;
-  shadow-opacity: 0.1;
-  elevation: 3;
-`;
-
-// Rendering 1000+ items - kstyled has no per-render cost
-<FlatList
-  data={items}
-  renderItem={({ item }) => <Item>{item.content}</Item>}
-/>;
-```
-
-### Static-heavy components
-
-Components with mostly static styles:
-
-```tsx
-// All these styles are compiled at build time
 const Card = styled.View`
-  padding: 20px;
-  margin: 12px;
-  border-radius: 12px;
-  background-color: white;
-  shadow-color: #000;
-  shadow-opacity: 0.1;
-  shadow-radius: 8px;
-  elevation: 3;
-`;
-```
-
-### Complex nested styles
-
-Deep component trees with many styled elements:
-
-```tsx
-const Page = styled.View`...`;
-const Section = styled.View`...`;
-const Card = styled.View`...`;
-const Header = styled.View`...`;
-const Title = styled.Text`...`;
-const Body = styled.Text`...`;
-
-// No runtime parsing overhead for any of these
-```
-
-## Optimization tips
-
-### Prefer static styles
-
-More static = better performance:
-
-```tsx
-// Good - mostly static
-const Button = styled.Pressable<{ $primary?: boolean }>`
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-weight: 600;
-  background-color: ${(p) => (p.$primary ? '#007AFF' : '#ccc')};
-`;
-
-// Less optimal - everything dynamic
-const Button = styled.Pressable<{ $padding?: number; $radius?: number }>`
-  padding: ${(p) => p.$padding || 12}px;
-  border-radius: ${(p) => p.$radius || 8}px;
-`;
-```
-
-### Use StyleSheet for inline styles
-
-For truly dynamic styles, use React Native's StyleSheet:
-
-```tsx
-const Item = styled.View`
   padding: 16px;
   border-radius: 8px;
+  background-color: #ffffff;
 `;
-
-function MyItem({ color }: { color: string }) {
-  return <Item style={{ backgroundColor: color }}>{/* ... */}</Item>;
-}
 ```
 
-### Memoize dynamic styles
+Static components use a dedicated render path that does not subscribe to the
+theme context. External `style` values are appended without rebuilding the
+compiled style object.
 
-If you have expensive style computations:
+### Dynamic styles
+
+Interpolations that depend on props or themes compile to small style functions:
 
 ```tsx
-const getButtonColor = (variant: string) => {
-  // Expensive computation
-  return computeColor(variant);
-};
-
-const Button = styled.Pressable<{ $variant: string }>`
-  padding: 12px;
-  background-color: ${(p) => getButtonColor(p.$variant)};
+const Card = styled.View<{ $selected?: boolean }>`
+  padding: 16px;
+  background-color: ${(props) =>
+    props.$selected ? props.theme.colors.accent : props.theme.colors.surface};
 `;
-
-// Consider memoizing or pre-computing
 ```
 
-## Measuring performance
+The runtime evaluates only those dynamic declarations. Static declarations in
+the same component still use registered styles.
 
-Use the example app's benchmark screen to compare:
+### Runtime fallback
+
+Templates that are not transformed by Babel remain functional through the
+runtime parser. This is a compatibility path, not the optimized path. In a
+production setup, enable the plugin's `strict` option so unsupported transforms
+fail during the build instead of silently falling back.
+
+```js
+plugins: [['babel-plugin-kstyled', { strict: true }]];
+```
+
+## Practical guidance
+
+- Keep invariant declarations static.
+- Use transient props such as `$selected` for style-only values so they are not
+  forwarded to native views.
+- Define styled components at module scope instead of recreating them during
+  render.
+- Measure the screen and interaction that matters to your product. Synthetic
+  cross-library percentages are not a substitute for application profiling.
+- Use the example app's Performance Lab to compare static and dynamic kstyled
+  workloads with React Profiler on the same device.
+
+## Reproducing package size
+
+Build the release artifacts and measure the exact files you plan to publish:
 
 ```bash
-cd packages/example
-pnpm start
+pnpm --filter kstyled build
+wc -c packages/kstyled/dist/index.mjs
+gzip -c packages/kstyled/dist/index.mjs | wc -c
 ```
 
-Navigate to "Performance" to see real-time comparisons between kstyled, styled-components, and emotion.
-
-## Real-world impact
-
-Based on our benchmark tests with 50 complex cards (each containing multiple styled components, dynamic props, and nested elements):
-
-- **Rendering performance**: kstyled is approximately **8-15% faster**
-  - vs emotion: ~15% faster (477ms vs 561ms median)
-  - vs styled-components: ~8% faster (183ms vs 199ms median)
-
-### Benchmark Results
-
-Below are real benchmark results from our test app rendering 50 complex cards:
-
-<div style={{display: 'flex', gap: '2rem', flexWrap: 'wrap', marginBottom: '2rem'}}>
-
-<div style={{flex: '1', minWidth: '300px'}}>
-
-#### kstyled vs emotion
-
-<details>
-<summary>View screenshot</summary>
-
-![kstyled vs emotion benchmark](/img/vs-emotion-css.png)
-
-</details>
-
-| Metric     | kstyled             | emotion             |
-| ---------- | ------------------- | ------------------- |
-| **Median** | **477.74ms**        | **561.23ms**        |
-| Mean       | 482.43ms            | 565.34ms            |
-| Min / Max  | 476.66ms / 494.44ms | 544.33ms / 592.24ms |
-| P95        | 494.15ms            | 585.37ms            |
-| Std Dev    | ±7.55ms             | ±12.32ms            |
-
-**Result: 14.9% faster** ⚡
-
-</div>
-
-<div style={{flex: '1', minWidth: '300px'}}>
-
-#### kstyled vs styled-components
-
-<details>
-<summary>View screenshot</summary>
-
-![kstyled vs styled-components benchmark](/img/vs-styled-components.png)
-
-</details>
-
-| Metric     | kstyled             | styled-components   |
-| ---------- | ------------------- | ------------------- |
-| **Median** | **182.94ms**        | **199.47ms**        |
-| Mean       | 186.21ms            | 193.26ms            |
-| Min / Max  | 182.37ms / 215.84ms | 182.33ms / 201.51ms |
-| P95        | 201.20ms            | 200.82ms            |
-| Std Dev    | ±9.88ms             | ±8.35ms             |
-
-**Result: 8.3% faster** ⚡
-
-</div>
-
-</div>
-
-**Test configuration:**
-
-- 50 cards per benchmark
-- 10 iterations per library (3 warm-up iterations discarded)
-- Randomized order each iteration
-- Each card contains multiple styled components with both static and dynamic styles
-
-### Why is kstyled faster?
-
-The performance advantage comes from **build-time optimization**:
-
-#### What kstyled does differently
-
-```tsx
-// This code:
-const Box = styled.View`
-  padding: 16px;
-  border-radius: 12px;
-  background-color: ${(p) => (p.$selected ? '#007AFF' : '#FFF')};
-`;
-
-// Is compiled at build time to:
-const styles = StyleSheet.create({
-  s0: { padding: 16, borderRadius: 12 },
-});
-
-const Box = (props) => {
-  const dynamicStyle = {
-    backgroundColor: props.$selected ? '#007AFF' : '#FFF',
-  };
-  return <View style={[styles.s0, dynamicStyle]} {...props} />;
-};
-```
-
-#### The key differences
-
-1. **Static style extraction**: kstyled separates static styles and compiles them to `StyleSheet.create()` at build time, while runtime CSS-in-JS libraries parse all template literals at runtime.
-
-2. **Simpler runtime**: kstyled's runtime just applies pre-computed styles, while styled-components/emotion need to parse CSS syntax, handle interpolations, and manage style caching on every component mount.
-
-3. **Smaller overhead per component**: Each styled component instance in kstyled has less work to do at runtime.
-
-### Performance characteristics
-
-The **8-15% improvement** is consistent across different types of components:
-
-- Components with mostly static styles benefit from build-time compilation
-- Components with dynamic styles still benefit from faster component instantiation and lighter runtime overhead
-- The improvement is most noticeable when rendering many components (e.g., long lists)
-
-**Note on real-world impact**: While our simple benchmark shows an 8-15% performance improvement, **more complex components with deeper nesting, multiple dynamic props, and heavy style computations can see even larger performance gains**. The compile-time optimization becomes increasingly beneficial as component complexity grows, since kstyled eliminates all CSS parsing overhead regardless of style complexity.
-
-### Important notes
-
-- Both kstyled and runtime CSS-in-JS libraries are highly optimized
-- Performance differences are **measurable but modest** in real-world apps
-- Choose based on your needs:
-  - Want maximum performance → kstyled
-  - Need maximum runtime flexibility → runtime CSS-in-JS
-  - Both are production-ready and performant options
+Package size can change with compiler output and dependencies, so release notes
+should report measurements from the tagged build rather than a permanent claim.

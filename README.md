@@ -1,72 +1,119 @@
 # kstyled
 
-[![CI](https://github.com/hyodotdev/kstyled/actions/workflows/ci.yml/badge.svg)](https://github.com/hyodotdev/kstyled/actions/workflows/ci.yml)
-[![Tests](https://github.com/hyodotdev/kstyled/actions/workflows/test.yml/badge.svg)](https://github.com/hyodotdev/kstyled/actions/workflows/test.yml)
+[![CI](https://github.com/crossplatformkorea/kstyled/actions/workflows/ci.yml/badge.svg)](https://github.com/crossplatformkorea/kstyled/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/kstyled.svg)](https://www.npmjs.com/package/kstyled)
 [![npm downloads](https://img.shields.io/npm/dm/kstyled.svg)](https://www.npmjs.com/package/kstyled)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-⚡️ **Compile-time CSS-in-JS for React Native** • styled-components API with zero runtime overhead
+Compile-time CSS-in-JS for React Native and Expo. kstyled keeps the familiar
+styled-components authoring model while extracting static declarations to
+`StyleSheet.create` and reducing dynamic templates to small native style
+patches.
 
-<p align="center">
-  <img src="packages/docs/static/img/k-dev.png" alt="K-Dev Demon Styles" max-width="1200" />
-</p>
+> `0.4.0-beta.1` is available on the `beta` dist-tag. The stable `latest`
+> release remains on `0.3.x` while the beta is validated in production apps.
 
-## Quick Start
+## Install the beta
 
 ```bash
-pnpm add kstyled
-pnpm add -D babel-plugin-kstyled
+pnpm add kstyled@beta
+pnpm add -D babel-plugin-kstyled@beta
 ```
 
-```javascript
+Configure the compiler before plugins that must run last, such as Reanimated:
+
+```js
 // babel.config.js
 module.exports = {
   presets: ['babel-preset-expo'],
-  plugins: ['babel-plugin-kstyled'],
+  plugins: [
+    ['babel-plugin-kstyled', { strict: true }],
+    'react-native-reanimated/plugin',
+  ],
 };
 ```
 
+`strict: true` makes a failed style transform fail the build instead of quietly
+falling back to runtime parsing.
+
+## Use it
+
 ```tsx
-import { styled } from 'kstyled';
-import { View, Text } from 'react-native';
+import { Pressable, Text } from 'react-native';
+import { defineTheme, styled, ThemeProvider } from 'kstyled';
 
-const Container = styled(View)`
-  flex: 1;
-  background-color: #f0f0f0;
+const theme = defineTheme({
+  colors: {
+    accent: '#0A7A55',
+    accentPressed: '#075F43',
+    textOnAccent: '#FFFFFF',
+  },
+  space: { md: 12, lg: 16 },
+  radii: { control: 8 },
+});
+
+const Button = styled(Pressable)<{ $pressed?: boolean }>`
+  min-height: 44px;
+  padding-vertical: ${(p) => p.theme.space.md}px;
+  padding-horizontal: ${(p) => p.theme.space.lg}px;
+  border-radius: ${(p) => p.theme.radii.control}px;
+  background-color: ${(p) =>
+    p.$pressed ? p.theme.colors.accentPressed : p.theme.colors.accent};
 `;
 
-const Title = styled(Text)<{ $primary?: boolean }>`
-  font-size: 24px;
-  color: ${p => p.$primary ? '#007AFF' : '#000'};
+const Label = styled.Text`
+  color: ${(p) => p.theme.colors.textOnAccent};
+  font-size: 15px;
+  font-weight: 600;
 `;
 
-export default function App() {
+export function SaveButton() {
   return (
-    <Container>
-      <Title $primary>Hello kstyled!</Title>
-    </Container>
+    <ThemeProvider theme={theme}>
+      <Button accessibilityRole="button">
+        <Label>Save changes</Label>
+      </Button>
+    </ThemeProvider>
   );
 }
 ```
 
-## Features
+Props prefixed with `$` are transient: they can drive styles but are not passed
+to the underlying native component. Dynamic styles that do not read a theme
+also work without a `ThemeProvider`.
 
-- ⚡️ **Zero runtime** - Styles compiled to `StyleSheet.create` at build time
-- 🎨 **Familiar API** - styled-components syntax you already know
-- ✨ **Flexible syntax** - Supports `${16}px`, `${'16px'}`, and `${16}` (unlike styled-components/emotion)
-- 🎭 **Theme support** - Built-in ThemeProvider with TypeScript
-- 💪 **Full TypeScript** - Complete type inference
-- 📦 **Tiny bundle** - Minimal runtime code
+Inline `css` templates are compiled even when they are declared inside a
+component:
 
-## Documentation
+```tsx
+import { css } from 'kstyled';
 
-See the [full documentation](https://hyodotdev.github.io/kstyled) for:
-- Getting Started guides
-- Styling patterns (static, dynamic, theming)
-- API reference
-- Performance benchmarks
+function Status({ active }: { active: boolean }) {
+  return (
+    <Text
+      style={css`
+        font-size: 14px;
+        color: ${active ? '#0A7A55' : '#687078'};
+      `}
+    >
+      {active ? 'Active' : 'Paused'}
+    </Text>
+  );
+}
+```
+
+## Beta highlights
+
+- Compiles function-scoped `css` templates to direct native style expressions.
+- Preserves `attrs`, `as`, refs, transient props, and styled extension APIs.
+- Collapses nested styled wrappers and preserves colliding compiled style keys.
+- Supports typed themes with `defineTheme` and `useTheme<typeof theme>()`.
+- Emits CJS, ESM, React Native export conditions, declarations, and source maps.
+- Includes an API-compatible runtime fallback with one actionable warning.
+
+See the [documentation](https://crossplatformkorea.github.io/kstyled),
+[changelog](./CHANGELOG.md), and [example app](./packages/example).
 
 ## License
 
-MIT © [hyodotdev](https://hyo.dev)
+MIT (c) [hyodotdev](https://hyo.dev)

@@ -3,7 +3,10 @@ import { StyleSheet, View, Text } from 'react-native';
 import { styled } from '../styled';
 import { css } from '../css';
 import type { CompiledStyles, StyleMetadata } from '../types';
-import { normalizeStyleValue } from '../css-runtime-parser';
+import {
+  normalizeStyleProperty,
+  normalizeStyleValue,
+} from '../css-runtime-parser';
 import { mergeDynamicPatches } from '../utils/style-merger';
 
 jest.mock('../theme', () => {
@@ -11,6 +14,7 @@ jest.mock('../theme', () => {
   return {
     ...actual,
     useTheme: () => actual.defaultTheme,
+    useThemeOrDefault: () => actual.defaultTheme,
   };
 });
 
@@ -37,8 +41,12 @@ describe('kstyled Runtime Tests', () => {
       expect(StyledView).toBeDefined();
       expect((StyledView as any).__kstyled_metadata__).toBeDefined();
       // Check that styles are present (may be merged, so use toMatchObject)
-      expect((StyledView as any).__kstyled_metadata__.compiledStyles).toMatchObject(compiledStyles);
-      expect((StyledView as any).__kstyled_metadata__.styleKeys).toContain('base');
+      expect(
+        (StyledView as any).__kstyled_metadata__.compiledStyles
+      ).toMatchObject(compiledStyles);
+      expect((StyledView as any).__kstyled_metadata__.styleKeys).toContain(
+        'base'
+      );
     });
 
     test('should merge static styles correctly', () => {
@@ -108,7 +116,11 @@ describe('kstyled Runtime Tests', () => {
       expect(metadata.getDynamicPatch).toBeDefined();
 
       // Test the dynamic patch function
-      const patch1 = getDynamicPatch({ $visible: true, $scale: 1.5, $color: 'red' });
+      const patch1 = getDynamicPatch({
+        $visible: true,
+        $scale: 1.5,
+        $color: 'red',
+      });
       expect(patch1).toEqual({
         opacity: 1,
         transform: [{ scale: 1.5 }],
@@ -185,6 +197,40 @@ describe('kstyled Runtime Tests', () => {
       const metadata = (ChildComponent as any).__kstyled_metadata__;
       expect(metadata.getDynamicPatch).toBeDefined();
     });
+
+    test('should preserve colliding style keys and render the root target once', () => {
+      const Base = React.forwardRef((props: any, ref) =>
+        React.createElement('Base', { ...props, ref })
+      );
+      const parentStyles = StyleSheet.create({
+        base: { padding: 12 },
+      }) as unknown as CompiledStyles;
+      const childStyles = StyleSheet.create({
+        base: { borderRadius: 8 },
+      }) as unknown as CompiledStyles;
+
+      const Parent = styled(Base).__withStyles({
+        compiledStyles: parentStyles,
+        styleKeys: ['base'],
+        getDynamicPatch: (props) => ({ opacity: props.$active ? 1 : 0.4 }),
+      });
+      const Child = styled(Parent).__withStyles({
+        compiledStyles: childStyles,
+        styleKeys: ['base'],
+      });
+
+      const metadata = (Child as any).__kstyled_metadata__;
+      expect(metadata.styleKeys).toEqual(['base', 'base__1']);
+
+      const element = (Child as any).render({ $active: true }, null);
+      expect(element.type).toBe(Base);
+      expect(element.props.$active).toBeUndefined();
+      expect(StyleSheet.flatten(element.props.style)).toMatchObject({
+        padding: 12,
+        borderRadius: 8,
+        opacity: 1,
+      });
+    });
   });
 
   describe('attrs() Pattern', () => {
@@ -196,17 +242,19 @@ describe('kstyled Runtime Tests', () => {
         },
       }) as unknown as CompiledStyles;
 
-      const StyledInput = styled(Text).attrs({
-        placeholder: 'Enter text',
-        accessibilityLabel: 'Text input',
-      } as any).__withStyles({
-        compiledStyles: styles,
-        styleKeys: ['base'],
-        attrs: {
+      const StyledInput = styled(Text)
+        .attrs({
           placeholder: 'Enter text',
           accessibilityLabel: 'Text input',
-        },
-      });
+        } as any)
+        .__withStyles({
+          compiledStyles: styles,
+          styleKeys: ['base'],
+          attrs: {
+            placeholder: 'Enter text',
+            accessibilityLabel: 'Text input',
+          },
+        });
 
       expect(StyledInput).toBeDefined();
       const metadata = (StyledInput as any).__kstyled_metadata__;
@@ -229,7 +277,10 @@ describe('kstyled Runtime Tests', () => {
       expect(typeof metadata.attrs).toBe('function');
 
       // Test that attrs function works
-      const testAttrs = (metadata.attrs as any)({ $placeholder: 'Test', $disabled: true });
+      const testAttrs = (metadata.attrs as any)({
+        $placeholder: 'Test',
+        $disabled: true,
+      });
       expect(testAttrs).toEqual({
         placeholder: 'Test',
         editable: false,
@@ -237,7 +288,8 @@ describe('kstyled Runtime Tests', () => {
     });
 
     test('should forward attrs values to rendered component', () => {
-      const Base = React.forwardRef((props: any, _ref) => {
+      const Base = React.forwardRef((props: any, ref) => {
+        void ref;
         return React.createElement('Base', props);
       });
 
@@ -254,7 +306,10 @@ describe('kstyled Runtime Tests', () => {
         },
       });
 
-      const element = (StyledComp as any).render({ testID: 'override-id' }, null);
+      const element = (StyledComp as any).render(
+        { testID: 'override-id' },
+        null
+      );
 
       expect(element.props.accessibilityRole).toBe('button');
       expect(element.props.testID).toBe('override-id');
@@ -262,8 +317,14 @@ describe('kstyled Runtime Tests', () => {
     });
 
     test('should allow attrs to override base component via as', () => {
-      const Base = React.forwardRef((props: any, _ref) => React.createElement('Base', props));
-      const Override = React.forwardRef((props: any, _ref) => React.createElement('Override', props));
+      const Base = React.forwardRef((props: any, ref) => {
+        void ref;
+        return React.createElement('Base', props);
+      });
+      const Override = React.forwardRef((props: any, ref) => {
+        void ref;
+        return React.createElement('Override', props);
+      });
 
       const StyledComp = styled(Base).__withStyles({
         attrs: () => ({
@@ -276,6 +337,26 @@ describe('kstyled Runtime Tests', () => {
 
       const elementWithProp = (StyledComp as any).render({ as: Base }, null);
       expect(elementWithProp.type).toBe(Base);
+    });
+
+    test('should preserve attrs across factory and component chains', () => {
+      const Base = React.forwardRef((props: any, ref) =>
+        React.createElement('Base', { ...props, ref })
+      );
+      const FactoryChained = styled(Base)
+        .attrs({ accessibilityRole: 'button' })
+        .attrs({ testID: 'factory-chain' })
+        .__withStyles({});
+
+      const factoryElement = (FactoryChained as any).render({}, null);
+      expect(factoryElement.props.accessibilityRole).toBe('button');
+      expect(factoryElement.props.testID).toBe('factory-chain');
+
+      const ComponentChained = FactoryChained.attrs({ accessible: true });
+      const componentElement = (ComponentChained as any).render({}, null);
+      expect(componentElement.props.accessibilityRole).toBe('button');
+      expect(componentElement.props.testID).toBe('factory-chain');
+      expect(componentElement.props.accessible).toBe(true);
     });
   });
 
@@ -519,11 +600,13 @@ describe('kstyled Runtime Tests', () => {
       };
 
       // attrs must be passed via .attrs() method, then __withStyles
-      const ComplexButton = styled(View).attrs(attrs).__withStyles({
-        compiledStyles: staticStyles,
-        styleKeys: ['base'],
-        getDynamicPatch,
-      });
+      const ComplexButton = styled(View)
+        .attrs(attrs)
+        .__withStyles({
+          compiledStyles: staticStyles,
+          styleKeys: ['base'],
+          getDynamicPatch,
+        });
 
       expect(ComplexButton).toBeDefined();
       const metadata = (ComplexButton as any).__kstyled_metadata__;
@@ -637,6 +720,25 @@ describe('kstyled Runtime Tests', () => {
       expect(normalizeStyleValue(undefined)).toBe(undefined);
     });
 
+    test('should normalize nested transform and offset values', () => {
+      const value = [
+        { translateX: '12px' },
+        { scale: '1.5' },
+        { shadowOffset: { height: '4', width: '2' } },
+      ];
+
+      expect(normalizeStyleValue(value)).toEqual([
+        { translateX: 12 },
+        { scale: 1.5 },
+        { shadowOffset: { height: 4, width: 2 } },
+      ]);
+    });
+
+    test('should preserve numeric font weights as strings', () => {
+      expect(normalizeStyleProperty('fontWeight', '600')).toBe('600');
+      expect(normalizeStyleProperty('fontWeight', 600)).toBe('600');
+    });
+
     test('should preserve color strings and keywords', () => {
       expect(normalizeStyleValue('red')).toBe('red');
       expect(normalizeStyleValue('#FF0000')).toBe('#FF0000');
@@ -693,8 +795,8 @@ describe('kstyled Runtime Tests', () => {
 
       const transform = normalized?.transform as any[];
       expect(transform[0].translateX).toBe(10); // '10px' -> 10
-      expect(transform[1].translateY).toBe(5);  // '5px' -> 5
-      expect(transform[2].scale).toBe(1.5);     // number unchanged
+      expect(transform[1].translateY).toBe(5); // '5px' -> 5
+      expect(transform[2].scale).toBe(1.5); // number unchanged
     });
   });
 });

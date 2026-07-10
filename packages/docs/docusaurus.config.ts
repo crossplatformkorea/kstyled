@@ -1,5 +1,5 @@
-import {themes as prismThemes} from 'prism-react-renderer';
-import type {Config} from '@docusaurus/types';
+import { themes as prismThemes } from 'prism-react-renderer';
+import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
@@ -7,10 +7,10 @@ const config: Config = {
   tagline: 'Compile-time CSS-in-JS for React Native',
   favicon: 'img/favicon.ico',
 
-  url: 'https://hyodotdev.github.io',
+  url: 'https://crossplatformkorea.github.io',
   baseUrl: '/kstyled/',
 
-  organizationName: 'hyodotdev',
+  organizationName: 'crossplatformkorea',
   projectName: 'kstyled',
 
   onBrokenLinks: 'throw',
@@ -33,7 +33,7 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           editUrl:
-            'https://github.com/hyodotdev/kstyled/tree/main/packages/docs/',
+            'https://github.com/crossplatformkorea/kstyled/tree/main/packages/docs/',
           routeBasePath: '/',
         },
         blog: false,
@@ -61,7 +61,7 @@ const config: Config = {
           label: 'Docs',
         },
         {
-          href: 'https://github.com/hyodotdev/kstyled',
+          href: 'https://github.com/crossplatformkorea/kstyled',
           label: 'GitHub',
           position: 'right',
         },
@@ -88,7 +88,7 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/hyodotdev/kstyled',
+              href: 'https://github.com/crossplatformkorea/kstyled',
             },
             {
               label: 'npm',
@@ -97,7 +97,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} hyodotdev. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Cross Platform Korea. Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.github,

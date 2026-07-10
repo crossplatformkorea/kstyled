@@ -1,6 +1,16 @@
-import type { StyleMetadata, StyleArray, StyleValue, StyleObject, PropsWithTheme, DynamicPatchFunction } from '../types/styled-types';
+import type {
+  StyleMetadata,
+  StyleArray,
+  StyleValue,
+  StyleObject,
+  PropsWithTheme,
+  DynamicPatchFunction,
+} from '../types/styled-types';
 import type { CompiledStyles } from '../types';
-import { normalizeStyleValue } from '../css-runtime-parser';
+import {
+  normalizeStyleProperty,
+  normalizeStyleValue,
+} from '../css-runtime-parser';
 
 type StyleValueLike = StyleValue | ReadonlyArray<StyleValueLike>;
 
@@ -12,6 +22,25 @@ type StyleValueLike = StyleValue | ReadonlyArray<StyleValueLike>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function expandShorthandProperties(styleObj: any): any {
   if (!styleObj || typeof styleObj !== 'object') {
+    return styleObj;
+  }
+
+  let hasShorthand = false;
+  for (const key in styleObj) {
+    if (
+      key === 'padding' ||
+      key === 'margin' ||
+      key === 'paddingHorizontal' ||
+      key === 'paddingVertical' ||
+      key === 'marginHorizontal' ||
+      key === 'marginVertical'
+    ) {
+      hasShorthand = true;
+      break;
+    }
+  }
+
+  if (!hasShorthand) {
     return styleObj;
   }
 
@@ -122,38 +151,63 @@ export function buildStyleArray(
  * Converts string values like '16px' to numbers
  * Handles nested transform arrays
  */
-function normalizeStyleObject(styleObj: StyleObject | null): StyleObject | null {
+function normalizeStyleObject(
+  styleObj: StyleObject | null
+): StyleObject | null {
   if (!styleObj) return null;
 
-  const normalized: StyleObject = {};
-  for (const key in styleObj) {
-    if (Object.prototype.hasOwnProperty.call(styleObj, key)) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const value = (styleObj as any)[key];
+  const source = styleObj as unknown as Record<string, unknown>;
+  let normalized: StyleObject | undefined;
+  for (const key in source) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      const value = source[key];
 
       // Handle transform array specially
       if (key === 'transform' && Array.isArray(value)) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (normalized as any)[key] = value.map((transformObj: any) => {
+        let normalizedTransforms: unknown[] | undefined;
+        value.forEach((transformObj: unknown, index: number) => {
           if (typeof transformObj === 'object' && transformObj !== null) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const normalizedTransform: any = {};
-            for (const transformKey in transformObj) {
-              if (Object.prototype.hasOwnProperty.call(transformObj, transformKey)) {
-                normalizedTransform[transformKey] = normalizeStyleValue(transformObj[transformKey]);
+            const transformRecord = transformObj as Record<string, unknown>;
+            let normalizedTransform: Record<string, unknown> | undefined;
+            for (const transformKey in transformRecord) {
+              if (
+                Object.prototype.hasOwnProperty.call(
+                  transformRecord,
+                  transformKey
+                )
+              ) {
+                const transformValue = transformRecord[transformKey];
+                const nextValue = normalizeStyleValue(transformValue);
+                if (nextValue !== transformValue) {
+                  normalizedTransform ||= { ...transformRecord };
+                  normalizedTransform[transformKey] = nextValue;
+                }
               }
             }
-            return normalizedTransform;
+
+            if (normalizedTransform) {
+              normalizedTransforms ||= [...value];
+              normalizedTransforms[index] = normalizedTransform;
+            }
           }
-          return transformObj;
         });
+
+        if (normalizedTransforms) {
+          normalized ||= { ...styleObj };
+          (normalized as unknown as Record<string, unknown>)[key] =
+            normalizedTransforms;
+        }
       } else {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (normalized as any)[key] = normalizeStyleValue(value);
+        const normalizedValue = normalizeStyleProperty(key, value);
+        if (normalizedValue !== value) {
+          normalized ||= { ...styleObj };
+          (normalized as unknown as Record<string, unknown>)[key] =
+            normalizedValue;
+        }
       }
     }
   }
-  return normalized;
+  return normalized || styleObj;
 }
 
 /**
@@ -179,10 +233,16 @@ export function mergeDynamicPatches(
     return null;
   }
 
-  const merged = { ...baseDynamicPatch, ...childDynamicPatch };
+  if (!baseDynamicPatch) {
+    return normalizeStyleObject(childDynamicPatch);
+  }
+
+  if (!childDynamicPatch) {
+    return normalizeStyleObject(baseDynamicPatch);
+  }
 
   // Normalize all values in the merged patch
-  return normalizeStyleObject(merged);
+  return normalizeStyleObject({ ...baseDynamicPatch, ...childDynamicPatch });
 }
 
 /**
@@ -196,17 +256,18 @@ export function createCombinedDynamicPatch(
     return undefined;
   }
 
+  if (!baseMetadata.getDynamicPatch) {
+    return getDynamicPatch;
+  }
+
+  if (!getDynamicPatch) {
+    return baseMetadata.getDynamicPatch;
+  }
+
   return (props: PropsWithTheme) => {
-    const basePatch = baseMetadata.getDynamicPatch
-      ? baseMetadata.getDynamicPatch(props)
-      : null;
+    const basePatch = baseMetadata.getDynamicPatch!(props);
+    const childPatch = getDynamicPatch(props);
 
-    const childPatch = getDynamicPatch
-      ? getDynamicPatch(props)
-      : null;
-
-    return basePatch || childPatch
-      ? { ...basePatch, ...childPatch }
-      : null;
+    return basePatch || childPatch ? { ...basePatch, ...childPatch } : null;
   };
 }

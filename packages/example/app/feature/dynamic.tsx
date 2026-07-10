@@ -1,301 +1,169 @@
 import { useState } from 'react';
-import { ScrollView } from 'react-native';
 import { styled } from 'kstyled';
+import {
+  BodyText,
+  Content,
+  DataLabel,
+  DataRow,
+  DataValue,
+  PageHeader,
+  PanelTitle,
+  Screen,
+  Section,
+  SectionHeader,
+  SectionMeta,
+  SectionTitle,
+  SegmentedControl,
+  ToolPanel,
+} from '../../src/ui';
 
-// ============================================
-// 🎨 DYNAMIC STYLES - Runtime Computation
-// ============================================
-// Styles computed at runtime based on props
-// Perfect for interactive, state-driven components
+type Signal = 'healthy' | 'warning' | 'critical';
+type Motion = 'steady' | 'lifted';
 
-const Container = styled.View`
-  flex: 1;
-  background-color: #F2F2F7;
-`;
-
-const Header = styled.View`
-  padding: 16px;
-  background-color: #FFFFFF;
-  border-bottom-width: 1px;
-  border-bottom-color: #C6C6C8;
-`;
-
-const Title = styled.Text`
-  font-size: 24px;
-  font-weight: bold;
-  color: #000000;
-  margin-bottom: 8px;
-`;
-
-const Description = styled.Text`
-  font-size: 14px;
-  color: #8E8E93;
-`;
-
-const Section = styled.View`
-  padding: 16px;
-  background-color: #FFFFFF;
-  margin: 16px;
-  border-radius: 12px;
-  shadow-color: #000000;
-  shadow-opacity: 0.05;
-  shadow-radius: 10px;
-  elevation: 2;
-`;
-
-const SectionTitle = styled.Text`
-  font-size: 18px;
-  font-weight: bold;
-  color: #000000;
-  margin-bottom: 12px;
-`;
-
-const CodeBlock = styled.View`
-  background-color: #F5F5F5;
-  padding: 12px;
+const Preview = styled.View`
+  min-height: 180px;
+  margin-top: 16px;
+  padding: 18px;
   border-radius: 8px;
-  margin-vertical: 8px;
+  justify-content: center;
+  background-color: ${(p) => p.theme.colors.surfaceMuted};
 `;
 
-const Code = styled.Text`
-  font-family: Courier;
+const SignalCard = styled.Pressable<{ $signal: Signal; $motion: Motion }>`
+  min-height: 104px;
+  padding: ${(p) => (p.$motion === 'lifted' ? 18 : 14)}px
+    ${(p) => (p.$motion === 'lifted' ? 20 : 16)}px;
+  border-radius: 8px;
+  border-width: 1px;
+  border-color: ${(p) => {
+    if (p.$signal === 'critical') return p.theme.colors.coral;
+    if (p.$signal === 'warning') return p.theme.colors.amber;
+    return p.theme.colors.accent;
+  }};
+  transform: translateY(${(p) => (p.$motion === 'lifted' ? -5 : 0)}px)
+    scale(${(p) => (p.$motion === 'lifted' ? 1.01 : 1)});
+  background-color: ${(p) => p.theme.colors.surface};
+`;
+
+const SignalTitle = styled.Text`
+  color: ${(p) => p.theme.colors.ink};
+  font-size: 16px;
+  font-weight: 700;
+`;
+
+const SignalCopy = styled.Text`
+  margin-top: 5px;
+  color: ${(p) => p.theme.colors.inkMuted};
   font-size: 13px;
-  color: #000000;
-  line-height: 18px;
 `;
 
-const InfoText = styled.Text`
-  font-size: 14px;
-  color: #666666;
-  line-height: 20px;
-  margin-vertical: 8px;
+const Track = styled.View`
+  height: 6px;
+  margin-top: 16px;
+  border-radius: 3px;
+  overflow: hidden;
+  background-color: ${(p) => p.theme.colors.surfaceMuted};
 `;
 
-const Badge = styled.View`
-  background-color: #FF9500;
-  padding: 4px 8px;
-  border-radius: 4px;
-  align-self: flex-start;
-  margin-top: 12px;
-`;
-
-const BadgeText = styled.Text`
-  color: #FFFFFF;
-  font-size: 11px;
-  font-weight: 600;
-`;
-
-// Dynamic button that changes based on variant prop
-const DynamicButton = styled.Pressable<{ $variant: 'primary' | 'danger' | 'success' }>`
-  padding: 14px 20px;
-  border-radius: 8px;
-  align-items: center;
-  margin-vertical: 6px;
+const Fill = styled.View<{ $signal: Signal }>`
+  width: ${(p) =>
+    p.$signal === 'healthy' ? '34%' : p.$signal === 'warning' ? '68%' : '94%'};
+  height: 6px;
+  border-radius: 3px;
   background-color: ${(p) => {
-    if (p.$variant === 'primary') return '#007AFF';
-    if (p.$variant === 'danger') return '#FF3B30';
-    return '#34C759';
+    if (p.$signal === 'critical') return p.theme.colors.coral;
+    if (p.$signal === 'warning') return p.theme.colors.amber;
+    return p.theme.colors.accent;
   }};
 `;
 
-const ButtonText = styled.Text`
-  color: #FFFFFF;
-  font-size: 16px;
+const Control = styled.View`
+  margin-top: 16px;
+`;
+
+const ControlLabel = styled.Text`
+  margin-bottom: 7px;
+  color: ${(p) => p.theme.colors.inkMuted};
+  font-size: 12px;
   font-weight: 600;
-`;
-
-const CurrentState = styled.Text`
-  font-size: 16px;
-  font-weight: 600;
-  color: #007AFF;
-  margin-vertical: 12px;
-  text-align: center;
-`;
-
-// Example 1: Number values with px suffix (compile-time stripping)
-const SizeBox = styled.View<{ $size?: 'small' | 'medium' | 'large' }>`
-  width: ${({$size = 'medium'}) =>
-    $size === 'small' ? 16 : $size === 'large' ? 24 : 20}px;
-  height: ${({$size = 'medium'}) =>
-    $size === 'small' ? 16 : $size === 'large' ? 24 : 20}px;
-  border-radius: ${({$size = 'medium'}) =>
-    $size === 'small' ? 8 : $size === 'large' ? 12 : 10}px;
-  background-color: #007AFF;
-  margin: 8px;
-`;
-
-// Example 2: String values with 'px' (runtime normalization)
-const SizeBox2 = styled.View<{ $size?: 'small' | 'medium' | 'large' }>`
-  width: ${({$size = 'medium'}) =>
-    $size === 'small' ? '16px' : $size === 'large' ? '24px' : '20px'};
-  height: ${({$size = 'medium'}) =>
-    $size === 'small' ? '16px' : $size === 'large' ? '24px' : '20px'};
-  border-radius: ${({$size = 'medium'}) =>
-    $size === 'small' ? '8px' : $size === 'large' ? '12px' : '10px'};
-  background-color: #34C759;
-  margin: 8px;
-`;
-
-const BoxRow = styled.View`
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  margin-vertical: 12px;
 `;
 
 export default function DynamicExampleScreen() {
-  const [variant, setVariant] = useState<'primary' | 'danger' | 'success'>('primary');
+  const [signal, setSignal] = useState<Signal>('healthy');
+  const [motion, setMotion] = useState<Motion>('steady');
 
   return (
-    <Container>
-      <ScrollView>
-        <Header>
-          <Title>🎨 Dynamic Styles</Title>
-          <Description>Runtime style computation</Description>
-        </Header>
-
+    <Screen>
+      <PageHeader
+        title="Dynamic props"
+        subtitle="Only interpolated values run during render; transient props stay out of the native view."
+      />
+      <Content>
         <Section>
-          <SectionTitle>What are Dynamic Styles?</SectionTitle>
-          <InfoText>
-            Dynamic styles are computed at runtime based on props. They use template literal interpolations with functions that receive props and return style values.
-          </InfoText>
-          <Badge>
-            <BadgeText>RUNTIME</BadgeText>
-          </Badge>
+          <SectionHeader>
+            <SectionTitle>Signal component</SectionTitle>
+            <SectionMeta>live patch</SectionMeta>
+          </SectionHeader>
+          <ToolPanel>
+            <PanelTitle>Service health</PanelTitle>
+            <BodyText>Switch state and motion independently.</BodyText>
+            <Control>
+              <ControlLabel>Signal</ControlLabel>
+              <SegmentedControl
+                value={signal}
+                options={['healthy', 'warning', 'critical'] as const}
+                onChange={setSignal}
+                label="Signal state"
+              />
+            </Control>
+            <Control>
+              <ControlLabel>Motion</ControlLabel>
+              <SegmentedControl
+                value={motion}
+                options={['steady', 'lifted'] as const}
+                onChange={setMotion}
+                label="Motion state"
+              />
+            </Control>
+            <Preview>
+              <SignalCard
+                $signal={signal}
+                $motion={motion}
+                accessibilityRole="button"
+                onPress={() =>
+                  setMotion(motion === 'steady' ? 'lifted' : 'steady')
+                }
+              >
+                <SignalTitle>
+                  {signal === 'healthy'
+                    ? 'All systems nominal'
+                    : signal === 'warning'
+                      ? 'Capacity nearing limit'
+                      : 'Action required'}
+                </SignalTitle>
+                <SignalCopy>
+                  $signal and $motion are consumed by styles only.
+                </SignalCopy>
+                <Track>
+                  <Fill $signal={signal} />
+                </Track>
+              </SignalCard>
+            </Preview>
+            <DataRow>
+              <DataLabel>native $signal prop</DataLabel>
+              <DataValue>filtered</DataValue>
+            </DataRow>
+            <DataRow>
+              <DataLabel>dynamic transform</DataLabel>
+              <DataValue $tone="coral">compiled</DataValue>
+            </DataRow>
+            <DataRow>
+              <DataLabel>static declarations</DataLabel>
+              <DataValue $tone="accent">registered</DataValue>
+            </DataRow>
+          </ToolPanel>
         </Section>
-
-        <Section>
-          <SectionTitle>Example Code</SectionTitle>
-          <CodeBlock>
-            <Code>{`type Variant = 'primary' | 'danger' | 'success';
-
-const Button = styled(Pressable)<{ $variant: Variant }>\`
-  padding: 14px 20px;
-  border-radius: 8px;
-  align-items: center;
-  background-color: \${(p) => {
-    if (p.$variant === 'primary') return '#007AFF';
-    if (p.$variant === 'danger') return '#FF3B30';
-    return '#34C759';
-  }};
-\`;
-
-// Usage:
-<Button $variant="primary">
-  <ButtonText>Primary</ButtonText>
-</Button>`}</Code>
-          </CodeBlock>
-        </Section>
-
-        <Section>
-          <SectionTitle>Live Example</SectionTitle>
-          <InfoText>
-            Click buttons to change the variant. All three buttons share the same variant state:
-          </InfoText>
-
-          <CurrentState>Current variant: {variant}</CurrentState>
-
-          <DynamicButton
-            $variant={variant}
-            onPress={() => setVariant('primary')}
-          >
-            <ButtonText>Set Primary (Blue)</ButtonText>
-          </DynamicButton>
-
-          <DynamicButton
-            $variant={variant}
-            onPress={() => setVariant('danger')}
-          >
-            <ButtonText>Set Danger (Red)</ButtonText>
-          </DynamicButton>
-
-          <DynamicButton
-            $variant={variant}
-            onPress={() => setVariant('success')}
-          >
-            <ButtonText>Set Success (Green)</ButtonText>
-          </DynamicButton>
-        </Section>
-
-        <Section>
-          <SectionTitle>How It Works</SectionTitle>
-          <InfoText>
-            1. Babel plugin detects template literal interpolations{'\n'}
-            2. Generates a dynamic patch function{'\n'}
-            3. Function is called at runtime with props{'\n'}
-            4. Returns computed style object
-          </InfoText>
-        </Section>
-
-        <Section>
-          <SectionTitle>Transient Props</SectionTitle>
-          <InfoText>
-            Props prefixed with $ (like $variant) are "transient" - they're used for styling but not forwarded to the underlying component.{'\n'}
-            {'\n'}
-            ✅ Use: $variant, $isActive, $size{'\n'}
-            ❌ Don't forward: variant, isActive, size
-          </InfoText>
-        </Section>
-
-        <Section>
-          <SectionTitle>When to Use</SectionTitle>
-          <InfoText>
-            ✅ Styles based on props{'\n'}
-            ✅ Interactive states (hover, active, disabled){'\n'}
-            ✅ Dynamic theming{'\n'}
-            ✅ Conditional styling{'\n'}
-            {'\n'}
-            ❌ Fixed, unchanging styles{'\n'}
-            ❌ When maximum performance is critical
-          </InfoText>
-        </Section>
-
-        <Section>
-          <SectionTitle>Unit Suffix Support</SectionTitle>
-          <InfoText>
-            kstyled supports CSS units in THREE ways:{'\n'}
-            {'\n'}
-            {'1. Number + '}{'}'}{' px suffix (compile-time)'}{'\n'}
-            {'2. String \'16px\' values (runtime)'}{'\n'}
-            {'3. Plain numbers (no unit)'}
-          </InfoText>
-          <CodeBlock>
-            <Code>{`// All three syntaxes work:
-// 1. Number with }px suffix
-width: \${size === 'small' ? 16 : 20}px;
-
-// 2. String with 'px'
-width: \${size === 'small' ? '16px' : '20px'};
-
-// 3. Plain number
-width: \${size === 'small' ? 16 : 20};`}</Code>
-          </CodeBlock>
-          <InfoText style={{marginTop: 12}}>
-            {'Blue boxes: Number + '}{'}'}{' px (compile-time)'}{'\n'}
-            {'Green boxes: String \'px\' (runtime)'}
-          </InfoText>
-          <BoxRow>
-            <SizeBox $size="small" />
-            <SizeBox $size="medium" />
-            <SizeBox $size="large" />
-          </BoxRow>
-          <BoxRow>
-            <SizeBox2 $size="small" />
-            <SizeBox2 $size="medium" />
-            <SizeBox2 $size="large" />
-          </BoxRow>
-        </Section>
-
-        <Section>
-          <SectionTitle>Performance</SectionTitle>
-          <InfoText>
-            Dynamic styles have a small runtime cost as the function is called on every render. Use them when you need dynamic behavior, but prefer static styles when possible.
-          </InfoText>
-          <Badge>
-            <BadgeText>SMALL RUNTIME COST</BadgeText>
-          </Badge>
-        </Section>
-      </ScrollView>
-    </Container>
+      </Content>
+    </Screen>
   );
 }

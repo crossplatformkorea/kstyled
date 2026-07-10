@@ -1,5 +1,9 @@
 import type { ComponentType } from 'react';
-import type { StyleMetadata, ComponentWithMetadata, StyleArray } from '../types/styled-types';
+import type {
+  ComponentWithMetadata,
+  StyleMetadata,
+  StyleValue,
+} from '../types/styled-types';
 import type { CompiledStyles } from '../types';
 
 /**
@@ -29,7 +33,9 @@ function isReactInternalComponent(
  * Check if a component is an Animated component
  * Animated components are frozen objects
  */
-export function isAnimatedComponent(component: ComponentType<unknown>): boolean {
+export function isAnimatedComponent(
+  component: ComponentType<unknown>
+): boolean {
   return Object.isFrozen(component);
 }
 
@@ -99,10 +105,6 @@ function extractMetadataRecursive(
 export function extractBaseMetadata(
   baseComponent: ComponentType<unknown>
 ): StyleMetadata {
-  if (isAnimatedComponent(baseComponent)) {
-    return {};
-  }
-
   return extractMetadataRecursive(baseComponent);
 }
 
@@ -117,14 +119,30 @@ export function mergeMetadata(
   mergedStyleKeys: string[];
 } {
   const mergedCompiledStyles = {
-    ...baseMetadata.compiledStyles,
-    ...childMetadata.compiledStyles,
+    ...(baseMetadata.compiledStyles || {}),
   } as CompiledStyles;
+  const mergedStyleKeys = [...(baseMetadata.styleKeys || [])];
+  const childStyles = childMetadata.compiledStyles;
 
-  const mergedStyleKeys = [
-    ...(baseMetadata.styleKeys || []),
-    ...(childMetadata.styleKeys || []),
-  ];
+  for (const childKey of childMetadata.styleKeys || []) {
+    if (
+      !childStyles ||
+      !Object.prototype.hasOwnProperty.call(childStyles, childKey)
+    ) {
+      continue;
+    }
+
+    let mergedKey = childKey;
+    let suffix = 1;
+    while (
+      Object.prototype.hasOwnProperty.call(mergedCompiledStyles, mergedKey)
+    ) {
+      mergedKey = `${childKey}__${suffix++}`;
+    }
+
+    mergedCompiledStyles[mergedKey] = childStyles[childKey];
+    mergedStyleKeys.push(mergedKey);
+  }
 
   return { mergedCompiledStyles, mergedStyleKeys };
 }
@@ -136,12 +154,16 @@ export function mergeMetadata(
 export function createStaticStylesArray(
   compiledStyles: CompiledStyles | undefined,
   styleKeys: string[]
-): StyleArray | undefined {
+): StyleValue {
   if (!compiledStyles || styleKeys.length === 0) {
     return undefined;
   }
 
-  return styleKeys.map(k => compiledStyles[k]);
+  if (styleKeys.length === 1) {
+    return compiledStyles[styleKeys[0]];
+  }
+
+  return styleKeys.map((key) => compiledStyles[key]);
 }
 
 /**
@@ -150,13 +172,8 @@ export function createStaticStylesArray(
  */
 export function attachMetadata(
   component: ComponentWithMetadata,
-  metadata: StyleMetadata,
-  baseComponent: ComponentType<unknown>
+  metadata: StyleMetadata
 ): void {
-  if (isAnimatedComponent(baseComponent)) {
-    return;
-  }
-
   try {
     component.__kstyled_metadata__ = metadata;
   } catch (e) {

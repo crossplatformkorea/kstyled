@@ -191,12 +191,107 @@ export function parseCSSValue(value: string): any {
   return trimmed;
 }
 
+function parseOffsetValue(value: string): { width: any; height: any } | null {
+  const parts = value.trim().split(/\s+/);
+  if (parts.length !== 2) {
+    return null;
+  }
+
+  return {
+    width: parseCSSValue(parts[0]),
+    height: parseCSSValue(parts[1]),
+  };
+}
+
+function parseTransformValue(value: string): Array<Record<string, any>> | null {
+  const transforms: Array<Record<string, any>> = [];
+  const transformPattern = /([a-zA-Z][\w]*)\(([^()]*)\)/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = transformPattern.exec(value)) !== null) {
+    if (value.slice(cursor, match.index).trim()) {
+      return null;
+    }
+
+    const name = match[1];
+    const rawValue = match[2].trim();
+
+    if (name === 'translate') {
+      const parts = rawValue.split(/[,\s]+/).filter(Boolean);
+      if (parts.length < 1 || parts.length > 2) {
+        return null;
+      }
+      transforms.push({ translateX: parseCSSValue(parts[0]) });
+      if (parts[1]) {
+        transforms.push({ translateY: parseCSSValue(parts[1]) });
+      }
+    } else if (name === 'matrix') {
+      const parts = rawValue
+        .split(/[,\s]+/)
+        .filter(Boolean)
+        .map(parseCSSValue);
+      if (parts.length !== 9 && parts.length !== 16) {
+        return null;
+      }
+      transforms.push({ matrix: parts });
+    } else if (
+      name === 'rotate' ||
+      name === 'rotateX' ||
+      name === 'rotateY' ||
+      name === 'rotateZ' ||
+      name === 'skewX' ||
+      name === 'skewY'
+    ) {
+      transforms.push({ [name]: rawValue });
+    } else if (
+      name === 'perspective' ||
+      name === 'scale' ||
+      name === 'scaleX' ||
+      name === 'scaleY' ||
+      name === 'translateX' ||
+      name === 'translateY'
+    ) {
+      transforms.push({ [name]: parseCSSValue(rawValue) });
+    } else {
+      return null;
+    }
+
+    cursor = transformPattern.lastIndex;
+  }
+
+  if (value.slice(cursor).trim() || transforms.length === 0) {
+    return null;
+  }
+
+  return transforms;
+}
+
+function parseStaticValue(property: string, value: string): any {
+  if (property === 'fontWeight' && /^\d+$/.test(value.trim())) {
+    return value.trim();
+  }
+
+  if (property === 'transform') {
+    return parseTransformValue(value) ?? parseCSSValue(value);
+  }
+
+  if (property === 'shadowOffset' || property === 'textShadowOffset') {
+    return parseOffsetValue(value) ?? parseCSSValue(value);
+  }
+
+  return parseCSSValue(value);
+}
+
 /**
  * Expand shorthand properties (padding, margin with multiple values) to longhand
  * React Native doesn't support shorthand like "4px 8px" but does support
  * single-value properties like borderRadius and borderColor
  */
-function expandShorthand(property: string, value: string): Record<string, any> | null {
+function expandShorthand(
+  property: string,
+  value: string
+): Record<string, any> | null {
   const trimmed = value.trim();
 
   // React Native supports borderRadius and borderColor as single properties,
@@ -329,12 +424,29 @@ export function parseCSS(css: string): StyleRule {
     const isDynamic = isDynamicValue(value);
 
     if (isDynamic) {
-      // Dynamic value - will be computed at runtime
-      // Strip units from placeholders (__EXPR_0__px -> __EXPR_0__)
-      const processedValue = parseCSSValue(value);
-      dynamicStyles.push({
-        properties: { [rnProperty]: processedValue },
-      });
+      const expanded = expandShorthand(originalProperty, value);
+      if (expanded) {
+        for (const [expandedProperty, expandedValue] of Object.entries(
+          expanded
+        )) {
+          if (
+            typeof expandedValue === 'string' &&
+            isDynamicValue(expandedValue)
+          ) {
+            dynamicStyles.push({
+              properties: { [expandedProperty]: expandedValue },
+            });
+          } else {
+            staticStyles[expandedProperty] = expandedValue;
+          }
+        }
+      } else {
+        // Strip units from placeholders (__EXPR_0__px -> __EXPR_0__)
+        const processedValue = parseCSSValue(value);
+        dynamicStyles.push({
+          properties: { [rnProperty]: processedValue },
+        });
+      }
     } else {
       // Check if this is a shorthand property (use original property name)
       const expanded = expandShorthand(originalProperty, value);
@@ -344,7 +456,7 @@ export function parseCSS(css: string): StyleRule {
         Object.assign(staticStyles, expanded);
       } else {
         // Static value - can be extracted to StyleSheet
-        staticStyles[rnProperty] = parseCSSValue(value);
+        staticStyles[rnProperty] = parseStaticValue(rnProperty, value);
       }
     }
   }

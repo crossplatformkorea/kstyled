@@ -1,7 +1,7 @@
 /**
  * kstyled
  *
- * Zero-runtime styled-components for React Native
+ * Compile-time CSS-in-JS for React Native
  * Build-time style extraction with StyleSheet performance
  *
  * @packageDocumentation
@@ -9,8 +9,10 @@
 
 export { styled, __injectKStyledMetadata } from './styled';
 export { css } from './css';
-export { ThemeProvider, useTheme, defaultTheme } from './theme';
+export { ThemeProvider, useTheme, defaultTheme, defineTheme } from './theme';
+export type { ThemeProviderProps } from './theme';
 export type {
+  CompiledStyle,
   DefaultTheme,
   StyledComponent,
   StyledComponentProps,

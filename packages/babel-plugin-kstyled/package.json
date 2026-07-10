@@ -1,15 +1,25 @@
 {
   "name": "babel-plugin-kstyled",
-  "version": "0.3.8",
+  "version": "0.4.0-beta.1",
+  "type": "commonjs",
   "description": "Babel plugin for kstyled - Build-time style extraction",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist",
     "README.md"
   ],
+  "sideEffects": false,
   "scripts": {
-    "build": "tsup src/index.ts --format cjs --dts --clean",
+    "build": "tsup src/index.ts --format cjs --dts --clean --sourcemap",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
     "test": "jest",
@@ -17,18 +27,27 @@
   },
   "keywords": [
     "babel-plugin",
+    "css-in-js",
+    "expo",
     "react-native",
+    "stylesheet",
     "styled-components",
-    "stylesheet"
+    "typescript"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/hyodotdev/kstyled.git",
+    "url": "git+https://github.com/crossplatformkorea/kstyled.git",
     "directory": "packages/babel-plugin-kstyled"
   },
-  "homepage": "https://hyodotdev.github.io/kstyled",
+  "homepage": "https://crossplatformkorea.github.io/kstyled",
   "author": "hyodotdev (https://hyo.dev)",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@babel/helper-module-imports": "^7.25.9",
     "@babel/template": "^7.25.9",

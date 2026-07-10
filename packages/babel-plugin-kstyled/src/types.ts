@@ -4,8 +4,8 @@
  */
 export interface PluginOptions {
   /**
-   * Enable auto-hoisting of inline styles to StyleSheet.create
-   * @default false
+   * Reserved for backward compatibility.
+   * @deprecated Inline css templates are compiled automatically.
    */
   autoHoist?: boolean;
 
@@ -16,8 +16,8 @@ export interface PluginOptions {
   importName?: string;
 
   /**
-   * Enable platform-specific styles (@android, @ios)
-   * @default true
+   * Reserved for backward compatibility.
+   * @deprecated Use React Native's Platform API for platform-specific values.
    */
   platformStyles?: boolean;
 
@@ -28,11 +28,16 @@ export interface PluginOptions {
   debug?: boolean;
 
   /**
-   * Optimize static-only components by generating direct components
-   * without styled() wrapper overhead
-   * @default true
+   * Reserved for backward compatibility.
+   * @deprecated Static components now use the API-compatible runtime fast path.
    */
   optimizeStatic?: boolean;
+
+  /**
+   * Fail the build when a kstyled template cannot be compiled.
+   * @default false
+   */
+  strict?: boolean;
 }
 
 /**

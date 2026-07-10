@@ -4,32 +4,10 @@
     "jsx": "react-native",
     "strict": true,
     "paths": {
-      "kstyled": ["../runtime/src"],
+      "kstyled": ["../kstyled/src"],
       "babel-plugin-kstyled": ["../babel-plugin-kstyled/src"]
     }
   },
-  "plugins": [
-    {
-      "name": "typescript-styled-plugin",
-      "lint": {
-        "validProperties": [
-          "shadow-color",
-          "shadow-opacity",
-          "shadow-offset",
-          "shadow-radius",
-          "spread-radius",
-          "padding-horizontal",
-          "padding-vertical",
-          "margin-vertical",
-          "margin-horizontal",
-          "tint-color",
-          "aspect-ratio",
-          "elevation",
-          "blur-radius",
-        ]
-      }
-    }
-  ],
-  "include": ["**/*.ts", "**/*.tsx"],
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
   "exclude": ["node_modules"]
 }

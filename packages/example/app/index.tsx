@@ -1,223 +1,346 @@
-import { ScrollView, View } from 'react-native';
+import { useState } from 'react';
+import { Platform } from 'react-native';
+import { type Href, useRouter } from 'expo-router';
 import { styled } from 'kstyled';
-import { useRouter, Href } from 'expo-router';
-import { StyledComponentsIcon, EmotionIcon } from '../src/icons';
+import packageJson from '../package.json';
+import {
+  AppHeader,
+  Content,
+  DataLabel,
+  DataRow,
+  DataValue,
+  Screen,
+  Section,
+  SectionHeader,
+  SectionMeta,
+  SectionTitle,
+  SegmentedControl,
+  ToolPanel,
+} from '../src/ui';
 
-const Container = styled.View`
-  flex: 1;
-  background-color: #F2F2F7;
+type DemoState = 'ready' | 'busy' | 'disabled';
+type Density = 'compact' | 'comfortable';
+
+const WorkspaceHeader = styled.View`
+  padding-top: 24px;
 `;
 
-const Header = styled.View`
-  padding: 20px;
-  background-color: #007AFF;
+const WorkspaceKicker = styled.Text`
+  color: ${(p) => p.theme.colors.accent};
+  font-size: 11px;
+  font-weight: 800;
+`;
+
+const WorkspaceTitle = styled.Text`
+  margin-top: 5px;
+  color: ${(p) => p.theme.colors.ink};
+  font-size: 25px;
+  line-height: 31px;
+  font-weight: 800;
+`;
+
+const WorkspaceMeta = styled.Text`
+  margin-top: 6px;
+  color: ${(p) => p.theme.colors.inkMuted};
+  font-size: 13px;
+`;
+
+const BuildStatus = styled.View`
+  padding-top: 14px;
+  flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
 `;
 
-const Title = styled.Text`
-  font-size: 28px;
-  font-weight: bold;
-  color: #FFFFFF;
-  margin-bottom: 8px;
-`;
-
-const Subtitle = styled.Text`
-  font-size: 16px;
-  color: #FFFFFF;
-  opacity: 0.9;
-  text-align: center;
-`;
-
-const ExampleCard = styled.Pressable`
-  background-color: #FFFFFF;
-  margin: 12px 16px;
-  padding: 20px;
-  border-radius: 12px;
-  shadow-color: #000000;
-  shadow-opacity: 0.1;
-  shadow-radius: 8px;
-  elevation: 3;
-`;
-
-const PerformanceCard = styled.Pressable`
-  background-color: #FFFFFF;
-  margin: 12px 16px;
-  padding: 20px;
-  border-radius: 12px;
-  shadow-color: #000000;
-  shadow-opacity: 0.1;
-  shadow-radius: 8px;
-  elevation: 3;
+const StatusItem = styled.View`
+  margin-right: 18px;
+  margin-bottom: 6px;
   flex-direction: row;
   align-items: center;
 `;
 
-const ExampleIcon = styled.Image`
-  width: 32px;
-  height: 32px;
-  margin-right: 12px;
+const StatusDot = styled.View`
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 4px;
+  background-color: ${(p) => p.theme.colors.accent};
 `;
 
-const ExampleContent = styled.View`
-  flex: 1;
-`;
-
-const ExampleTitle = styled.Text`
-  font-size: 20px;
+const StatusText = styled.Text`
+  color: ${(p) => p.theme.colors.inkMuted};
+  font-size: 12px;
   font-weight: 600;
-  color: #000000;
-  margin-bottom: 8px;
 `;
 
-const ExampleDescription = styled.Text`
+const ControlGrid = styled.View`
+  margin-horizontal: -5px;
+  flex-direction: row;
+  flex-wrap: wrap;
+`;
+
+const ControlSlot = styled.View`
+  min-width: 220px;
+  margin: 5px;
+  flex-grow: 1;
+`;
+
+const ControlLabel = styled.Text`
+  margin-bottom: 7px;
+  color: ${(p) => p.theme.colors.inkMuted};
+  font-size: 12px;
+  font-weight: 600;
+`;
+
+const PreviewSurface = styled.View`
+  min-height: 132px;
+  margin-top: 14px;
+  padding: 18px;
+  border-radius: 6px;
+  align-items: center;
+  justify-content: center;
+  background-color: ${(p) => p.theme.colors.surfaceMuted};
+`;
+
+const DemoAction = styled.Pressable<{
+  $state: DemoState;
+  $density: Density;
+}>`
+  min-width: 190px;
+  min-height: ${(p) => (p.$density === 'compact' ? 40 : 48)}px;
+  padding: ${(p) => (p.$density === 'compact' ? 9 : 13)}px
+    ${(p) => (p.$density === 'compact' ? 16 : 22)}px;
+  border-radius: 6px;
+  align-items: center;
+  justify-content: center;
+  opacity: ${(p) => (p.$state === 'disabled' ? 0.42 : 1)};
+  transform: scale(${(p) => (p.$state === 'busy' ? 0.98 : 1)});
+  background-color: ${(p) =>
+    p.$state === 'busy' ? p.theme.colors.blue : p.theme.colors.accent};
+`;
+
+const DemoActionText = styled.Text`
+  color: ${(p) => p.theme.colors.onAccent};
   font-size: 14px;
-  color: #666666;
-  line-height: 20px;
-`;
-
-const ArrowIcon = styled.Text`
-  font-size: 18px;
-  color: #007AFF;
-  position: absolute;
-  right: 20px;
-  top: 50%;
-  transform: translateY(-9px);
-`;
-
-const SectionHeader = styled.View`
-  padding: 16px 16px 8px 16px;
-  margin-top: 12px;
-`;
-
-const SectionTitle = styled.Text`
-  font-size: 18px;
   font-weight: 700;
-  color: #000000;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 `;
 
-const SectionDescription = styled.Text`
-  font-size: 13px;
-  color: #666666;
-  margin-top: 4px;
-  line-height: 18px;
+const ResultTable = styled.View`
+  margin-top: 14px;
+  border-top-width: 1px;
+  border-top-color: ${(p) => p.theme.colors.border};
 `;
 
-const features = [
+const RouteList = styled.View`
+  border-top-width: 1px;
+  border-top-color: ${(p) => p.theme.colors.border};
+`;
+
+const RouteRow = styled.Pressable`
+  min-height: 70px;
+  padding-vertical: 12px;
+  border-bottom-width: 1px;
+  border-bottom-color: ${(p) => p.theme.colors.border};
+  flex-direction: row;
+  align-items: center;
+`;
+
+const RouteIndex = styled.Text`
+  width: 34px;
+  color: ${(p) => p.theme.colors.inkMuted};
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 700;
+`;
+
+const RouteContent = styled.View`
+  flex: 1;
+  min-width: 0px;
+`;
+
+const RouteTitle = styled.Text`
+  color: ${(p) => p.theme.colors.ink};
+  font-size: 14px;
+  font-weight: 700;
+`;
+
+const RouteMeta = styled.Text`
+  margin-top: 3px;
+  color: ${(p) => p.theme.colors.inkMuted};
+  font-size: 12px;
+`;
+
+const RouteAction = styled.Text`
+  margin-left: 12px;
+  color: ${(p) => p.theme.colors.accent};
+  font-size: 12px;
+  font-weight: 800;
+`;
+
+const RouteArrow = styled.Text`
+  margin-left: 8px;
+  color: ${(p) => p.theme.colors.inkMuted};
+  font-size: 16px;
+  font-weight: 700;
+`;
+
+const routes = [
   {
-    id: 'static',
-    title: '📦 Static Styles',
-    description: 'Compile-time style extraction with zero runtime overhead. Perfect for static, unchanging styles.',
+    title: 'Static extraction',
+    meta: 'registered StyleSheet output',
     route: '/feature/static',
   },
   {
-    id: 'dynamic',
-    title: '🎨 Dynamic Styles',
-    description: 'Runtime style computation based on props. Ideal for interactive components that change based on state.',
+    title: 'Dynamic props',
+    meta: 'transient props and transforms',
     route: '/feature/dynamic',
   },
   {
-    id: 'hybrid',
-    title: '🔄 Hybrid Styles',
-    description: 'Combines static and dynamic styles. Static parts are compiled, dynamic parts computed at runtime.',
+    title: 'Composition',
+    meta: 'extension and inline css',
     route: '/feature/hybrid',
   },
   {
-    id: 'attrs',
-    title: '🎯 Attrs Pattern',
-    description: 'Set default props and accessibility attributes using the .attrs() method.',
+    title: 'Attrs and inputs',
+    meta: 'typed defaults and native props',
     route: '/feature/attrs',
   },
   {
-    id: 'theme',
-    title: '🎭 Theming',
-    description: 'Global theme provider with typed theme values. Access theme anywhere in your styled components.',
+    title: 'Theme system',
+    meta: 'provider and typed tokens',
     route: '/feature/theme',
   },
-];
-
-const performance = [
   {
-    id: 'benchmark',
-    title: '⚡️ Performance Benchmark',
-    description: 'Compare performance between kstyled (compiled) and StyleSheet (native).',
+    title: 'Render profiler',
+    meta: 'device-local commit timing',
     route: '/performance',
-    icon: null,
   },
-  {
-    id: 'styled-components',
-    title: 'vs styled-components',
-    description: 'Compare kstyled compile-time performance against styled-components runtime styling.',
-    route: '/performance/styled-components',
-    icon: StyledComponentsIcon,
-  },
-  {
-    id: 'emotion',
-    title: 'vs Emotion',
-    description: 'Compare kstyled compile-time performance against @emotion/native runtime styling.',
-    route: '/performance/emotion',
-    icon: EmotionIcon,
-  },
-];
+] as const;
 
 export default function HomeScreen() {
   const router = useRouter();
+  const [state, setState] = useState<DemoState>('ready');
+  const [density, setDensity] = useState<Density>('comfortable');
 
   return (
-    <Container>
-      <ScrollView>
-        <Header>
-          <Title>🎨 kstyled</Title>
-          <Subtitle>
-            Compile-time CSS-in-JS for React Native{'\n'}
-            Styled-components API with zero runtime cost
-          </Subtitle>
-        </Header>
+    <Screen>
+      <AppHeader />
+      <Content>
+        <WorkspaceHeader>
+          <WorkspaceKicker>LOCAL WORKSPACE</WorkspaceKicker>
+          <WorkspaceTitle>Component workbench</WorkspaceTitle>
+          <WorkspaceMeta>
+            {packageJson.version} / Expo 54 / {Platform.OS}
+          </WorkspaceMeta>
+          <BuildStatus>
+            <StatusItem>
+              <StatusDot />
+              <StatusText>Babel strict</StatusText>
+            </StatusItem>
+            <StatusItem>
+              <StatusDot />
+              <StatusText>workspace package</StatusText>
+            </StatusItem>
+            <StatusItem>
+              <StatusDot />
+              <StatusText>native renderer</StatusText>
+            </StatusItem>
+          </BuildStatus>
+        </WorkspaceHeader>
 
-        <SectionHeader>
-          <SectionTitle>Features</SectionTitle>
-          <SectionDescription>
-            Explore different styling patterns and capabilities
-          </SectionDescription>
-        </SectionHeader>
+        <Section>
+          <SectionHeader>
+            <SectionTitle>Interactive preview</SectionTitle>
+            <SectionMeta>
+              {state} / {density}
+            </SectionMeta>
+          </SectionHeader>
+          <ToolPanel>
+            <ControlGrid>
+              <ControlSlot>
+                <ControlLabel>State</ControlLabel>
+                <SegmentedControl
+                  value={state}
+                  options={['ready', 'busy', 'disabled'] as const}
+                  onChange={setState}
+                  label="Component state"
+                />
+              </ControlSlot>
+              <ControlSlot>
+                <ControlLabel>Density</ControlLabel>
+                <SegmentedControl
+                  value={density}
+                  options={['compact', 'comfortable'] as const}
+                  onChange={setDensity}
+                  label="Component density"
+                />
+              </ControlSlot>
+            </ControlGrid>
 
-        <View style={{ paddingBottom: 8 }}>
-          {features.map((feature) => (
-            <ExampleCard
-              key={feature.id}
-              onPress={() => router.push(feature.route as Href)}
-            >
-              <ExampleTitle>{feature.title}</ExampleTitle>
-              <ExampleDescription>{feature.description}</ExampleDescription>
-              <ArrowIcon>→</ArrowIcon>
-            </ExampleCard>
-          ))}
-        </View>
+            <PreviewSurface>
+              <DemoAction
+                $state={state}
+                $density={density}
+                disabled={state === 'disabled'}
+                accessibilityRole="button"
+                accessibilityState={{
+                  disabled: state === 'disabled',
+                  busy: state === 'busy',
+                }}
+                onPress={() => setState(state === 'ready' ? 'busy' : 'ready')}
+              >
+                <DemoActionText>
+                  {state === 'busy'
+                    ? 'Building package...'
+                    : state === 'disabled'
+                      ? 'Release unavailable'
+                      : 'Build beta package'}
+                </DemoActionText>
+              </DemoAction>
+            </PreviewSurface>
 
-        <SectionHeader>
-          <SectionTitle>Performance</SectionTitle>
-          <SectionDescription>
-            Benchmark and compare rendering performance
-          </SectionDescription>
-        </SectionHeader>
+            <ResultTable>
+              <DataRow>
+                <DataLabel>static styles</DataLabel>
+                <DataValue $tone="accent">registered</DataValue>
+              </DataRow>
+              <DataRow>
+                <DataLabel>dynamic values</DataLabel>
+                <DataValue $tone="coral">evaluated</DataValue>
+              </DataRow>
+              <DataRow>
+                <DataLabel>transient props</DataLabel>
+                <DataValue>filtered</DataValue>
+              </DataRow>
+            </ResultTable>
+          </ToolPanel>
+        </Section>
 
-        <View style={{ paddingBottom: 20 }}>
-          {performance.map((item) => (
-            <PerformanceCard
-              key={item.id}
-              onPress={() => router.push(item.route as Href)}
-            >
-              {item.icon && <ExampleIcon source={item.icon} />}
-              <ExampleContent>
-                <ExampleTitle>{item.title}</ExampleTitle>
-                <ExampleDescription>{item.description}</ExampleDescription>
-              </ExampleContent>
-              <ArrowIcon>→</ArrowIcon>
-            </PerformanceCard>
-          ))}
-        </View>
-      </ScrollView>
-    </Container>
+        <Section>
+          <SectionHeader>
+            <SectionTitle>Feature tests</SectionTitle>
+            <SectionMeta>{routes.length} surfaces</SectionMeta>
+          </SectionHeader>
+          <RouteList>
+            {routes.map((item, index) => (
+              <RouteRow
+                key={item.route}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${item.title}`}
+                onPress={() => router.push(item.route as Href)}
+              >
+                <RouteIndex>{String(index + 1).padStart(2, '0')}</RouteIndex>
+                <RouteContent>
+                  <RouteTitle>{item.title}</RouteTitle>
+                  <RouteMeta>{item.meta}</RouteMeta>
+                </RouteContent>
+                <RouteAction>OPEN</RouteAction>
+                <RouteArrow>&gt;</RouteArrow>
+              </RouteRow>
+            ))}
+          </RouteList>
+        </Section>
+      </Content>
+    </Screen>
   );
 }

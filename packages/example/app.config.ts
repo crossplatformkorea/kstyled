@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'kstyled-example',
   slug: 'kstyled-example',
-  version: '0.1.0',
+  version: '0.4.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',
@@ -22,7 +22,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     package: 'dev.hyo.rnkstyled',
   },
   web: {
-    favicon: './assets/favicon.png',
+    favicon: './assets/icon.png',
+  },
+  experiments: {
+    typedRoutes: true,
   },
   scheme: 'rnkstyled',
   plugins: ['expo-asset', 'expo-font', 'expo-router'],

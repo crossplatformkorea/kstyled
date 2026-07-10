@@ -1,5 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { CompiledStyles } from './types';
+import type { StyleObject, StyleValue } from './types/styled-types';
+import { normalizeStyleProperty, parseCSS } from './css-runtime-parser';
 
 /**
  * Global debug flag for fallback CSS runtime parser
@@ -7,6 +9,7 @@ import type { CompiledStyles } from './types';
  * For normal usage, control via babel.config.js: ['babel-plugin-kstyled', { debug: true }]
  */
 const FALLBACK_DEBUG = false;
+let didWarnAboutRuntimeFallback = false;
 
 /**
  * Metadata injected by Babel plugin for css`` helper
@@ -30,12 +33,15 @@ interface CssFactory {
   /**
    * Method called by Babel plugin with extracted styles
    */
-  __withStyles(metadata: CssMetadata): any[];
+  __withStyles(metadata: CssMetadata): StyleValue;
+
+  /** @internal Used by babel-plugin-kstyled for dynamic css`` values. */
+  __normalizeStyleValue(property: string, value: any): any;
 
   /**
    * Fallback: Called when used as tagged template without Babel transform
    */
-  (strings: TemplateStringsArray, ...interpolations: any[]): any;
+  (strings: TemplateStringsArray, ...interpolations: any[]): StyleObject;
 }
 
 /**
@@ -64,128 +70,64 @@ interface CssFactory {
  */
 export const css: CssFactory = Object.assign(
   function cssRuntime(strings: TemplateStringsArray, ...interpolations: any[]) {
-    // Runtime CSS parsing for dynamic values
-    // Build the full CSS string with interpolated values
-    let cssString = '';
-    for (let i = 0; i < strings.length; i++) {
-      cssString += strings[i];
-      if (i < interpolations.length) {
-        cssString += interpolations[i];
-      }
+    if (!didWarnAboutRuntimeFallback) {
+      didWarnAboutRuntimeFallback = true;
+      console.warn(
+        '[kstyled] css`` is using the runtime fallback. Add babel-plugin-kstyled to compile inline styles.'
+      );
     }
 
-    // Extract caller information from stack trace
     let callerInfo = 'unknown';
-    try {
-      const stack = new Error().stack || '';
-      const lines = stack.split('\n');
-      // Find the first line that's not from this file or node_modules
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line.includes('css.tsx') && !line.includes('node_modules')) {
-          // Extract filename and function name
-          // Format: "at functionName (filename:line:col)"
-          const match = line.match(/at\s+(\S+)\s+\(([^)]+)\)/);
-          if (match) {
-            const funcName = match[1];
-            const fullPath = match[2];
-            const filename = fullPath.split('/').pop()?.split(':')[0] || 'unknown';
-            callerInfo = `${filename}:${funcName}`;
-          } else {
-            // Format: "at filename:line:col"
-            const match2 = line.match(/at\s+(.+):(\d+):(\d+)/);
-            if (match2) {
-              const fullPath = match2[1];
-              const filename = fullPath.split('/').pop() || 'unknown';
-              callerInfo = filename;
-            }
-          }
-          break;
-        }
-      }
-    } catch (e) {
-      // Ignore stack trace errors
-    }
-
     if (FALLBACK_DEBUG) {
-      console.log(`[kstyled-css-runtime] Parsing CSS in ${callerInfo}:`, cssString);
-    }
-
-    // Parse the CSS string into a style object
-    try {
-      const styleObj: any = {};
-      const lines = cssString.split(';').filter(line => line.trim());
-
-      for (const line of lines) {
-        const colonIndex = line.indexOf(':');
-        if (colonIndex === -1) continue;
-
-        const prop = line.slice(0, colonIndex).trim();
-        const value = line.slice(colonIndex + 1).trim();
-
-        if (!prop || !value) continue;
-
-        // Convert CSS property to camelCase
-        const camelProp = prop.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-
-        // Handle padding and margin shorthand
-        // 1 value: all sides
-        // 2 values: vertical horizontal
-        // 3 values: top horizontal bottom
-        // 4 values: top right bottom left
-        if (camelProp === 'padding' || camelProp === 'margin') {
-          const parts = value.split(/\s+/);
-          const prefix = camelProp; // 'padding' or 'margin'
-
-          // IMPORTANT: Always use longhand properties for proper override in React Native
-          if (parts.length === 1) {
-            const val = parseFloat(parts[0]);
-            styleObj[`${prefix}Top`] = val;
-            styleObj[`${prefix}Right`] = val;
-            styleObj[`${prefix}Bottom`] = val;
-            styleObj[`${prefix}Left`] = val;
-          } else if (parts.length === 2) {
-            styleObj[`${prefix}Top`] = parseFloat(parts[0]);
-            styleObj[`${prefix}Right`] = parseFloat(parts[1]);
-            styleObj[`${prefix}Bottom`] = parseFloat(parts[0]);
-            styleObj[`${prefix}Left`] = parseFloat(parts[1]);
-          } else if (parts.length === 3) {
-            // top, horizontal, bottom
-            styleObj[`${prefix}Top`] = parseFloat(parts[0]);
-            styleObj[`${prefix}Right`] = parseFloat(parts[1]);
-            styleObj[`${prefix}Bottom`] = parseFloat(parts[2]);
-            styleObj[`${prefix}Left`] = parseFloat(parts[1]);
-          } else if (parts.length === 4) {
-            styleObj[`${prefix}Top`] = parseFloat(parts[0]);
-            styleObj[`${prefix}Right`] = parseFloat(parts[1]);
-            styleObj[`${prefix}Bottom`] = parseFloat(parts[2]);
-            styleObj[`${prefix}Left`] = parseFloat(parts[3]);
+      try {
+        const stack = new Error().stack || '';
+        const lines = stack.split('\n');
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i];
+          if (!line.includes('css.tsx') && !line.includes('node_modules')) {
+            const match = line.match(/at\s+(\S+)\s+\(([^)]+)\)/);
+            if (match) {
+              const filename =
+                match[2].split('/').pop()?.split(':')[0] || 'unknown';
+              callerInfo = `${filename}:${match[1]}`;
+            } else {
+              const matchWithoutFunction = line.match(/at\s+(.+):(\d+):(\d+)/);
+              if (matchWithoutFunction) {
+                callerInfo =
+                  matchWithoutFunction[1].split('/').pop() || 'unknown';
+              }
+            }
+            break;
           }
         }
-        // Parse numeric values (remove 'px' suffix)
-        else if (value.endsWith('px')) {
-          styleObj[camelProp] = parseFloat(value);
-        }
-        // Parse unitless numeric values (e.g., flex: 1, opacity: 0.5)
-        else if (/^-?\d+(\.\d+)?$/.test(value)) {
-          styleObj[camelProp] = parseFloat(value);
-        }
-        // Keep string values as-is
-        else {
-          styleObj[camelProp] = value;
+      } catch {
+        // Stack inspection is debug-only and must never affect rendering.
+      }
+    }
+
+    try {
+      const { staticStyles, dynamicGetter } = parseCSS(strings, interpolations);
+      const dynamicStyles = dynamicGetter?.({});
+      const styleObject = { ...staticStyles };
+
+      if (dynamicStyles) {
+        for (const [key, value] of Object.entries(dynamicStyles)) {
+          styleObject[key] = normalizeStyleProperty(key, value);
         }
       }
 
       if (FALLBACK_DEBUG) {
-        console.log(`[kstyled-css-runtime] Result in ${callerInfo}:`, styleObj);
+        console.log(`[kstyled-css-runtime] Parsed ${callerInfo}:`, styleObject);
       }
-      return styleObj;
+
+      return styleObject;
     } catch (error) {
-      console.warn('[kstyled] Failed to parse css``: ', error);
+      console.warn('[kstyled] Failed to parse css``:', error);
       return {};
     }
   },
   {
+    __normalizeStyleValue: normalizeStyleProperty,
     __withStyles: function (metadata: CssMetadata): any {
       const { compiledStyles, styleKeys, getDynamicPatch } = metadata;
 
@@ -220,7 +162,11 @@ export const css: CssFactory = Object.assign(
               hash = '';
             }
 
-            if (hash && metadata._cachedDynamic && metadata._cachedDynamic.hash === hash) {
+            if (
+              hash &&
+              metadata._cachedDynamic &&
+              metadata._cachedDynamic.hash === hash
+            ) {
               // Check if we can reuse the cached patch
               styles.push(metadata._cachedDynamic.patch);
             } else {
@@ -237,7 +183,10 @@ export const css: CssFactory = Object.assign(
           // This is expected for css`` used inside styled components where
           // theme is provided at render time, not at definition time.
           if (typeof __DEV__ !== 'undefined' && __DEV__) {
-            console.warn('[kstyled] css.__withStyles getDynamicPatch({}) failed:', error);
+            console.warn(
+              '[kstyled] css.__withStyles getDynamicPatch({}) failed:',
+              error
+            );
           }
         }
       }
@@ -257,4 +206,4 @@ export const css: CssFactory = Object.assign(
 /**
  * Type helper for css`` return type
  */
-export type CssResult = any[] | any;
+export type CssResult = StyleValue;

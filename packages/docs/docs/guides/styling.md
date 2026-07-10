@@ -12,7 +12,7 @@ Static styles are extracted at compile time and converted to `StyleSheet.create(
 const Box = styled.View`
   width: 100px;
   height: 100px;
-  background-color: #007AFF;
+  background-color: #007aff;
   border-radius: 8px;
 `;
 
@@ -23,11 +23,12 @@ const styles = StyleSheet.create({
     height: 100,
     backgroundColor: '#007AFF',
     borderRadius: 8,
-  }
+  },
 });
 ```
 
-This is the most efficient way to style components - zero runtime cost.
+This is the most efficient path: CSS parsing happens during compilation and the
+component reuses a registered native style at runtime.
 
 ## Units
 
@@ -37,9 +38,9 @@ Numbers without units are treated as `dp` (density-independent pixels):
 
 ```tsx
 const Box = styled.View`
-  width: 100px;    // 100 dp
-  height: 50px;    // 50 dp
-  padding: 16px;   // 16 dp
+  width: 100px; // 100 dp
+  height: 50px; // 50 dp
+  padding: 16px; // 16 dp
 `;
 ```
 
@@ -159,8 +160,8 @@ Properties can be written in either CSS kebab-case or React Native camelCase:
 ```tsx
 // Both work identically
 const Box = styled.View`
-  background-color: #fff;  /* kebab-case */
-  backgroundColor: #fff;    /* camelCase */
+  background-color: #fff; /* kebab-case */
+  backgroundcolor: #fff; /* camelCase */
 `;
 ```
 

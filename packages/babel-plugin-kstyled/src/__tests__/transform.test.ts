@@ -1,9 +1,12 @@
 import { transformSync } from '@babel/core';
 import plugin from '../index';
 
-function transform(code: string, debug = false) {
+function transform(
+  code: string,
+  options: { debug?: boolean; optimizeStatic?: boolean; strict?: boolean } = {}
+) {
   const result = transformSync(code, {
-    plugins: [[plugin, { debug }]],
+    plugins: [[plugin, options]],
     filename: 'test.tsx',
     presets: ['@babel/preset-typescript'],
   });
@@ -139,7 +142,7 @@ describe('babel-plugin-kstyled', () => {
       expect(output).not.toContain('paddingHorizontal');
     });
 
-    test('should skip static optimization for member expressions', () => {
+    test('should preserve the styled contract for member expressions', () => {
       const input = `
         import { styled } from 'kstyled';
         import { Typography } from './typography';
@@ -153,6 +156,76 @@ describe('babel-plugin-kstyled', () => {
 
       expect(output).toContain('styled(Typography.Body2).__withStyles');
       expect(output).not.toContain('forwardRef');
+    });
+
+    test('should preserve attrs and extension APIs for static components', () => {
+      const input = `
+        import { styled } from 'kstyled';
+        import { View } from 'react-native';
+
+        const Box = styled(View)\`
+          padding: 16px;
+        \`;
+      `;
+
+      const output = transform(input, { optimizeStatic: true });
+
+      expect(output).toContain('styled(View).__withStyles');
+      expect(output).not.toContain('forwardRef');
+    });
+  });
+
+  describe('Inline css Compilation', () => {
+    test('should compile static and dynamic css inside functions', () => {
+      const input = `
+        import { css } from 'kstyled';
+
+        function getStyle(active: boolean) {
+          return css\`
+            padding: 12px;
+            color: \${active ? '#0A7A55' : '#687078'};
+          \`;
+        }
+      `;
+
+      const output = transform(input);
+
+      expect(output).toContain('StyleSheet.create');
+      expect(output).toContain("active ? '#0A7A55' : '#687078'");
+      expect(output).not.toContain('css.__withStyles');
+      expect(output).not.toContain('css`');
+    });
+
+    test('should emit a direct object for dynamic-only css', () => {
+      const input = `
+        import { css } from 'kstyled';
+
+        const getStyle = (opacity: number) => css\`
+          opacity: \${opacity};
+        \`;
+      `;
+
+      const output = transform(input);
+
+      expect(output).toContain('css.__normalizeStyleValue("opacity", opacity)');
+      expect(output).not.toContain('StyleSheet.create');
+      expect(output).not.toContain('css.__withStyles');
+    });
+
+    test('should normalize numeric strings in dynamic css values', () => {
+      const input = `
+        import { css } from 'kstyled';
+
+        const getStyle = (loading: boolean) => css\`
+          opacity: \${loading ? '0' : '1'};
+        \`;
+      `;
+
+      const output = transform(input);
+
+      expect(output).toContain(
+        "css.__normalizeStyleValue(\"opacity\", loading ? '0' : '1')"
+      );
     });
   });
 
@@ -196,6 +269,29 @@ describe('babel-plugin-kstyled', () => {
       // The arrow function should be called with (p)
       expect(output).toMatch(/opacity.*\(p\)/);
       expect(output).toContain('getDynamicPatch');
+    });
+
+    test('should expand dynamic shorthand and compile dynamic transforms', () => {
+      const input = `
+        import { styled } from 'kstyled';
+        import { View } from 'react-native';
+
+        const Box = styled(View)\`
+          padding: \${p => p.$vertical}px \${p => p.$horizontal}px;
+          transform: translateY(\${p => p.$offset}px) scale(\${p => p.$scale});
+        \`;
+      `;
+
+      const output = transform(input);
+
+      expect(output).toContain('paddingTop');
+      expect(output).toContain('paddingRight');
+      expect(output).toContain('paddingBottom');
+      expect(output).toContain('paddingLeft');
+      expect(output).toContain('translateY');
+      expect(output).toContain('scale');
+      expect(output).toContain('p.$offset');
+      expect(output).toContain('p.$scale');
     });
   });
 
@@ -250,6 +346,24 @@ describe('babel-plugin-kstyled', () => {
       // Should have attrs
       expect(output).toContain('attrs');
       expect(output).toContain('placeholder');
+    });
+
+    test('should compile attrs on styled shortcuts', () => {
+      const input = `
+        import { styled } from 'kstyled';
+
+        const Input = styled.TextInput.attrs({
+          accessibilityLabel: 'Search'
+        })\`
+          min-height: 44px;
+        \`;
+      `;
+
+      const output = transform(input);
+
+      expect(output).toContain('__withStyles');
+      expect(output).toContain('accessibilityLabel');
+      expect(output).toContain('TextInput');
     });
   });
 
@@ -512,6 +626,28 @@ describe('babel-plugin-kstyled', () => {
       expect(output).toContain('shadowOpacity');
       expect(output).toContain('shadowRadius');
       expect(output).toContain('elevation');
+    });
+
+    test('should serialize transform arrays and shadow offsets', () => {
+      const input = `
+        import { styled } from 'kstyled';
+        import { View } from 'react-native';
+
+        const Floating = styled(View)\`
+          transform: translateY(-9px) scale(1.05) rotate(2deg);
+          shadow-offset: 0px 4px;
+        \`;
+      `;
+
+      const output = transform(input);
+
+      expect(output).toContain('translateY: -9');
+      expect(output).toContain('scale: 1.05');
+      expect(output).toContain('rotate: "2deg"');
+      expect(output).toContain('shadowOffset');
+      expect(output).toContain('width: 0');
+      expect(output).toContain('height: 4');
+      expect(output).not.toContain('transform: null');
     });
 
     test('should support all layout properties including margin/padding start/end', () => {

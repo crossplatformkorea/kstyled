@@ -74,8 +74,10 @@ function parseValue(value: string): any {
   const trimmed = value.trim();
 
   // Remove quotes
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-      (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
     return trimmed.slice(1, -1);
   }
 
@@ -104,15 +106,58 @@ export function normalizeStyleValue(value: any): any {
     return parseValue(value);
   }
 
+  if (Array.isArray(value)) {
+    let normalized: any[] | undefined;
+
+    value.forEach((item, index) => {
+      const nextValue = normalizeStyleValue(item);
+      if (nextValue !== item) {
+        normalized ||= [...value];
+        normalized[index] = nextValue;
+      }
+    });
+
+    return normalized || value;
+  }
+
+  if (value && typeof value === 'object') {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype === Object.prototype || prototype === null) {
+      let normalized: Record<string, any> | undefined;
+
+      for (const [key, item] of Object.entries(value)) {
+        const nextValue = normalizeStyleValue(item);
+        if (nextValue !== item) {
+          const target = normalized || { ...value };
+          target[key] = nextValue;
+          normalized = target;
+        }
+      }
+
+      return normalized || value;
+    }
+  }
+
   // Return non-string values as-is (numbers, objects, etc.)
   return value;
+}
+
+export function normalizeStyleProperty(property: string, value: any): any {
+  if (property === 'fontWeight') {
+    return typeof value === 'number' ? String(value) : value;
+  }
+
+  return normalizeStyleValue(value);
 }
 
 /**
  * Expand shorthand properties (padding, margin, etc.) to longhand
  * React Native doesn't support shorthand like "4px 8px"
  */
-function expandShorthand(property: string, value: string): Record<string, any> | null {
+function expandShorthand(
+  property: string,
+  value: string
+): Record<string, any> | null {
   const trimmed = value.trim();
 
   // Check if this is a shorthand value (contains spaces and numbers)
@@ -188,7 +233,7 @@ export function parseCSS(
 
   const declarations = css
     .split(';')
-    .map(d => d.trim())
+    .map((d) => d.trim())
     .filter(Boolean);
 
   for (const decl of declarations) {
@@ -217,7 +262,10 @@ export function parseCSS(
         Object.assign(staticStyles, expanded);
       } else {
         const parsedValue = parseValue(value);
-        staticStyles[rnProp] = parsedValue;
+        staticStyles[rnProp] =
+          rnProp === 'fontWeight' && typeof parsedValue === 'number'
+            ? String(parsedValue)
+            : parsedValue;
       }
     }
   }

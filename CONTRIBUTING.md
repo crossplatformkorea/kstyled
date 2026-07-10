@@ -15,7 +15,7 @@ Thank you for your interest in contributing! This document provides guidelines a
 1. **Fork and clone the repository**
 
    ```bash
-   git clone https://github.com/hyodotdev/kstyled.git
+   git clone https://github.com/crossplatformkorea/kstyled.git
    cd kstyled
    ```
 
@@ -74,7 +74,6 @@ kstyled/
    ```
 
 2. Make your changes in the appropriate package:
-
    - Runtime changes: `packages/kstyled/src/`
    - Babel plugin changes: `packages/babel-plugin-kstyled/src/`
    - Example app changes: `packages/example/app/`
@@ -257,10 +256,8 @@ bun run build
 bun run dev
 ```
 
-**Note:** The lockfiles for both are committed:
-
-- `pnpm-lock.yaml` for pnpm
-- `bun.lockb` for bun
+`pnpm-lock.yaml` is the release lockfile and must stay in sync. Bun is useful for
+local development, but release checks and CI use pnpm.
 
 ## Release Process
 
@@ -268,150 +265,68 @@ bun run dev
 
 ### Publishing a New Version
 
-We support two methods for publishing: **GitHub Actions (Recommended)** and **Manual**.
+The publish workflow releases the exact version already committed to `main`.
+It never edits package versions or creates a release commit.
 
-#### Method 1: GitHub Actions (Recommended)
-
-The easiest way to publish is using the automated GitHub Actions workflow:
-
-1. **Go to GitHub Actions**
-
-   Navigate to: `https://github.com/hyodotdev/kstyled/actions/workflows/publish.yml`
-
-2. **Run workflow**
-
-   - Click "Run workflow"
-   - Select branch: `main`
-   - Choose version bump type:
-     - `patch` - Bug fixes (0.3.0 → 0.3.1)
-     - `minor` - New features (0.3.0 → 0.4.0)
-     - `major` - Breaking changes (0.3.0 → 1.0.0)
-   - Optional: Check "Dry run" to test without publishing
-
-3. **Wait for completion**
-
-   The workflow will automatically:
-   - ✅ Build all packages
-   - ✅ Run type checking and tests
-   - ✅ Bump versions in both packages
-   - ✅ Commit and push changes
-   - ✅ Publish to npm (with OIDC authentication)
-   - ✅ Create git tag
-   - ✅ Create GitHub Release with auto-generated notes
-
-4. **Verify**
-
-   Check that:
-   - New version appears on npm
-   - GitHub Release is created
-   - Git tag is pushed
-
-**Note**: The workflow uses OpenID Connect (OIDC) for npm authentication, so no NPM_TOKEN is needed.
-
-#### Method 2: Manual Publishing
-
-If you need to publish manually:
-
-1. **Update package versions**
-
-   Use the version scripts to automatically bump versions in both packages:
+1. Update every package version together.
 
    ```bash
-   pnpm version:patch  # 0.3.0 → 0.3.1 (bug fixes)
-   pnpm version:minor  # 0.3.0 → 0.4.0 (new features)
-   pnpm version:major  # 0.3.0 → 1.0.0 (breaking changes)
+   pnpm version:beta     # beta.1 -> beta.2
+   pnpm version:release  # 0.4.0-beta.2 -> 0.4.0
    ```
 
-   This updates both `kstyled` and `babel-plugin-kstyled` at once using the custom `scripts/bump-version.js` script.
+   Use `version:patch`, `version:minor`, or `version:major` only when starting a
+   new stable line.
 
-2. **Build and test everything**
+2. Update `CHANGELOG.md`, then run the complete release gate.
 
    ```bash
-   pnpm build && pnpm typecheck && pnpm test
+   pnpm check
+   pnpm publish:dry:beta # use publish:dry for a stable release
    ```
 
-   Make sure all checks pass with 0 errors.
+3. Commit the release candidate and push it to `main`.
 
-3. **Commit version changes**
+4. Open the [Publish workflow](https://github.com/crossplatformkorea/kstyled/actions/workflows/publish.yml)
+   and run it on `main` with the matching npm tag. Keep `dry_run` enabled for
+   the first run.
+
+5. Inspect the dry-run package lists, then run the same workflow with
+   `dry_run` disabled. The workflow publishes both packages with npm
+   provenance, pushes `v<version>`, and creates a prerelease for beta versions.
+
+6. Verify both packages and dist-tags.
 
    ```bash
-   git add packages/*/package.json
-   git commit -m "chore: release v0.3.1"
-   git tag v0.3.1
+   npm view kstyled@beta version
+   npm view babel-plugin-kstyled@beta version
+   npm view kstyled dist-tags
+   npm view babel-plugin-kstyled dist-tags
    ```
 
-4. **Verify npm login**
+#### Trusted Publishing
 
-   ```bash
-   npm whoami
-   # Should display your npm username
-   ```
+Configure npm trusted publishing separately for `kstyled` and
+`babel-plugin-kstyled`:
 
-   If not logged in:
+- provider: GitHub Actions
+- organization: `crossplatformkorea`
+- repository: `kstyled`
+- workflow filename: `publish.yml`
 
-   ```bash
-   npm login
-   ```
+The workflow has `id-token: write`, so it does not require an `NPM_TOKEN`.
 
-5. **Test publish (dry-run)**
+#### Manual Fallback
 
-   ```bash
-   pnpm publish:dry
-   ```
+Use this only when trusted publishing is unavailable. Run `pnpm check`, confirm
+`npm whoami`, and publish each package with the same tag and provenance:
 
-   This shows what would be published without actually publishing. Check:
-   - Package sizes look reasonable
-   - File list is correct
-   - No unexpected files included
+```bash
+npm publish --workspace packages/kstyled --access public --tag beta --provenance
+npm publish --workspace packages/babel-plugin-kstyled --access public --tag beta --provenance
+```
 
-6. **Publish to npm**
-
-   **Option A: Stable Release (latest tag)**
-
-   ```bash
-   pnpm publish:packages
-   ```
-
-   For provenance (recommended):
-
-   ```bash
-   pnpm publish:packages --provenance
-   ```
-
-   This publishes both `kstyled` and `babel-plugin-kstyled` to npm with public access as the `latest` version.
-
-   **Option B: Beta/Preview Release (next tag)**
-
-   ```bash
-   pnpm publish:packages --tag next
-   ```
-
-   Use this for:
-   - Testing major changes before stable release
-   - Preview releases for early adopters
-   - Release candidates (e.g., `0.3.0-rc.1`)
-
-7. **Push changes and tags**
-
-   ```bash
-   git push origin main
-   git push origin v0.3.1
-   ```
-
-8. **Create GitHub Release (optional)**
-
-   Go to: `https://github.com/hyodotdev/kstyled/releases/new`
-   - Select the tag you just pushed
-   - Generate release notes automatically
-   - Publish release
-
-9. **Verify publication**
-
-   ```bash
-   npm view kstyled version
-   npm view babel-plugin-kstyled version
-   # Both should show the new version
-   ```
+Create and push the matching tag only after both publishes succeed.
 
 ### Troubleshooting Publishing
 
@@ -425,10 +340,9 @@ This means the version in package.json already exists on npm. You need to:
 
 #### "ERR_PNPM_GIT_NOT_LATEST"
 
-Your local git history differs from remote. Either:
-
-- Pull latest changes: `git pull`
-- Or use force push (be careful!): `git push --force`
+Your local git history differs from remote. Fetch the remote changes and rebase
+the release commit before trying again. Do not bypass this check for a real
+publish.
 
 #### "ERR_PNPM_GIT_UNCLEAN"
 
@@ -543,8 +457,8 @@ Useful launch configurations in `.vscode/launch.json`:
 If you have questions, please:
 
 1. Check the [README](README.md)
-2. Check the [Documentation](https://hyodotdev.github.io/kstyled) (includes Troubleshooting guide)
-3. Open a [Discussion](https://github.com/hyodotdev/kstyled/discussions)
-4. File an [Issue](https://github.com/hyodotdev/kstyled/issues)
+2. Check the [Documentation](https://crossplatformkorea.github.io/kstyled) (includes Troubleshooting guide)
+3. Open a [Discussion](https://github.com/crossplatformkorea/kstyled/discussions)
+4. File an [Issue](https://github.com/crossplatformkorea/kstyled/issues)
 
 Thank you for contributing! 🎉

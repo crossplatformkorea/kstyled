@@ -1,6 +1,12 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type, @typescript-eslint/no-explicit-any */
 import type { ComponentType, ComponentProps } from 'react';
-import type { ImageStyle, TextStyle, ViewStyle, StyleProp } from 'react-native';
+import type {
+  ImageStyle,
+  RegisteredStyle,
+  TextStyle,
+  ViewStyle,
+  StyleProp,
+} from 'react-native';
 
 /**
  * Union of all React Native style types
@@ -15,9 +21,11 @@ export type StyleObject = ViewStyle & TextStyle & ImageStyle;
 
 /**
  * Compiled style reference injected by Babel plugin
- * Format: { s0: number, s1: number, ... } where values are StyleSheet IDs
+ * Values are native registered styles or React Native Web style objects.
  */
-export type CompiledStyles = Record<string, number>;
+export type CompiledStyle = StyleObject | RegisteredStyle<StyleObject>;
+
+export type CompiledStyles = Record<string, CompiledStyle>;
 
 /**
  * Default theme structure
@@ -55,7 +63,8 @@ export type ForwardedProps<P = {}> = Omit<P, keyof TransientProps<P>>;
 /**
  * Extract attrs props type from component
  */
-export type AttrsProps<T> = T extends StyledComponent<any, any, infer A> ? A : {};
+export type AttrsProps<T> =
+  T extends StyledComponent<any, any, infer A> ? A : {};
 
 /**
  * The `as` prop allows changing the component type
@@ -71,13 +80,18 @@ export interface AsProp<C extends ComponentType<any> = ComponentType<any>> {
 export type StyledComponentProps<
   C extends ComponentType<any>,
   P = {},
-  AttrsP = {}
-> = P & Partial<AttrsP> & ComponentProps<C> & AsProp;
+  AttrsP = {},
+> = Omit<ComponentProps<C>, keyof P | keyof AttrsP> &
+  P &
+  Partial<AttrsP> &
+  AsProp;
 
 /**
  * Interpolation function type
  */
-export type Interpolation<P = {}> = (props: P & { theme: DefaultTheme }) => StyleObject | string | number | undefined;
+export type Interpolation<P = {}> = (
+  props: P & { theme: DefaultTheme }
+) => StyleObject | string | number | undefined;
 
 /**
  * Template literal or interpolation array
@@ -112,7 +126,7 @@ export type AttrsFunction<P = {}> = (
 export type StyledComponent<
   C extends ComponentType<any>,
   P = {},
-  AttrsP = {}
+  AttrsP = {},
 > = ComponentType<StyledComponentProps<C, P, AttrsP>> & {
   attrs<NewAttrs extends Record<string, unknown>>(
     attrs: NewAttrs | AttrsFunction<P & Partial<NewAttrs>>
@@ -144,8 +158,21 @@ export interface StyledFunction {
   View: StyledFactory<typeof import('react-native').View>;
   Text: StyledFactory<typeof import('react-native').Text>;
   Image: StyledFactory<typeof import('react-native').Image>;
+  ImageBackground: StyledFactory<typeof import('react-native').ImageBackground>;
+  ActivityIndicator: StyledFactory<
+    typeof import('react-native').ActivityIndicator
+  >;
+  KeyboardAvoidingView: StyledFactory<
+    typeof import('react-native').KeyboardAvoidingView
+  >;
   ScrollView: StyledFactory<typeof import('react-native').ScrollView>;
-  TouchableOpacity: StyledFactory<typeof import('react-native').TouchableOpacity>;
+  Switch: StyledFactory<typeof import('react-native').Switch>;
+  TouchableHighlight: StyledFactory<
+    typeof import('react-native').TouchableHighlight
+  >;
+  TouchableOpacity: StyledFactory<
+    typeof import('react-native').TouchableOpacity
+  >;
   Pressable: StyledFactory<typeof import('react-native').Pressable>;
   TextInput: StyledFactory<typeof import('react-native').TextInput>;
   SafeAreaView: StyledFactory<typeof import('react-native').SafeAreaView>;
@@ -165,4 +192,8 @@ export interface StyleCombiner {
 }
 
 // Re-export types from styled-types for convenience
-export type { StyleMetadata, DynamicPatchFunction, PropsWithTheme } from './styled-types';
+export type {
+  StyleMetadata,
+  DynamicPatchFunction,
+  PropsWithTheme,
+} from './styled-types';

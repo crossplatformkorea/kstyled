@@ -88,6 +88,12 @@ describe('expandShorthandProperties', () => {
   });
 
   describe('preserving other properties', () => {
+    it('should reuse objects that do not contain shorthand properties', () => {
+      const input = { backgroundColor: 'red', opacity: 0.8 };
+
+      expect(expandShorthandProperties(input)).toBe(input);
+    });
+
     it('should preserve non-shorthand properties', () => {
       const input = {
         padding: 8,

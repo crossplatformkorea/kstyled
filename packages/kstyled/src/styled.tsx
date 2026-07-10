@@ -5,7 +5,11 @@ import {
   Text,
   Image,
   ImageBackground,
+  ActivityIndicator,
+  KeyboardAvoidingView,
   ScrollView,
+  Switch,
+  TouchableHighlight,
   TouchableOpacity,
   Pressable,
   TextInput,
@@ -14,8 +18,16 @@ import {
   SectionList,
 } from 'react-native';
 import type { StyledComponent, CompiledStyles, AttrsFunction } from './types';
-import type { StyleMetadata, StyledFactory, StyleObject, PropsWithTheme, StyleValue, DynamicPatchFunction, AttrsValue } from './types/styled-types';
-import { useTheme } from './theme';
+import type {
+  StyleMetadata,
+  StyledFactory,
+  StyleObject,
+  PropsWithTheme,
+  StyleValue,
+  DynamicPatchFunction,
+  AttrsValue,
+} from './types/styled-types';
+import { useThemeOrDefault } from './theme';
 import { parseCSS } from './css-runtime-parser';
 import {
   extractBaseMetadata,
@@ -35,6 +47,19 @@ import {
   combineAttrs,
 } from './utils/props-filter';
 
+let didWarnAboutRuntimeFallback = false;
+
+function warnAboutRuntimeFallback(): void {
+  if (didWarnAboutRuntimeFallback) {
+    return;
+  }
+
+  didWarnAboutRuntimeFallback = true;
+  console.warn(
+    '[kstyled] Runtime parsing is active. Add babel-plugin-kstyled to compile styles at build time.'
+  );
+}
+
 /**
  * Main styled function
  * Creates styled components with build-time style extraction
@@ -52,28 +77,28 @@ import {
  * `;
  * ```
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */
 function styledFunction<C extends ComponentType<any>, P = {}, AttrsP = {}>(
   BaseComponent: C,
   baseAttrs?: AttrsP
 ): StyledFactory<C, P, AttrsP> {
+  /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */
   /**
    * Create the actual styled component from metadata
    */
-  function createStyledComponent(
+  function createStyledComponent<CurrentAttrsP = AttrsP>(
     metadata: StyleMetadata = {}
-  ): StyledComponent<C, P, AttrsP> {
-    const {
-      compiledStyles,
-      styleKeys,
-      getDynamicPatch,
-      attrs,
-    } = metadata;
+  ): StyledComponent<C, P, CurrentAttrsP> {
+    const { compiledStyles, styleKeys, getDynamicPatch, attrs } = metadata;
 
     // Extract base component's metadata (handles Animated components)
     const baseMetadata = extractBaseMetadata(BaseComponent);
     const combinedAttrs = combineAttrs(baseMetadata.attrs, attrs);
     const hasAttrs = Boolean(combinedAttrs);
+    const hasDynamicStyles = Boolean(
+      baseMetadata.getDynamicPatch || getDynamicPatch
+    );
+    const targetComponent = baseMetadata.target || BaseComponent;
 
     // Merge parent and child styles
     const { mergedCompiledStyles, mergedStyleKeys } = mergeMetadata(
@@ -87,41 +112,51 @@ function styledFunction<C extends ComponentType<any>, P = {}, AttrsP = {}>(
       mergedStyleKeys
     );
 
-    const StyledComponent = forwardRef<unknown, Record<string, unknown>>((props, ref) => {
-      // Fast path: static styles only (no dynamic, no attrs, no external style)
-      if (!getDynamicPatch && !hasAttrs && !props.style) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const Component = (props.as || BaseComponent) as ComponentType<any>;
+    const renderStatic = (props: Record<string, unknown>, ref: unknown) => {
+      const externalStyle = props.style as StyleValue;
+      const finalStyle = externalStyle
+        ? buildStyleArray(
+            mergedCompiledStyles,
+            mergedStyleKeys,
+            null,
+            externalStyle
+          )
+        : staticStylesArray;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const Component = (props.as || targetComponent) as ComponentType<any>;
+      const needsPropFiltering =
+        hasTransientProps(props) ||
+        Boolean(props.as) ||
+        Object.prototype.hasOwnProperty.call(props, 'theme');
 
-        // Check if we have any transient props first
-        const hasTransient = hasTransientProps(props);
-
-        // If no transient props, just spread all props (fastest path)
-        if (!hasTransient && !props.as && !props.theme) {
-          return <Component ref={ref} {...props} style={staticStylesArray} />;
-        }
-
-        // Otherwise filter props
-        const forwardedProps = filterProps(props, ref);
-        forwardedProps.style = staticStylesArray;
-        return <Component {...forwardedProps} />;
+      if (!needsPropFiltering) {
+        return <Component {...props} ref={ref} style={finalStyle} />;
       }
 
-      // Slow path: dynamic styles, attrs, or external styles
+      const forwardedProps = filterProps(props, ref);
+      forwardedProps.style = finalStyle;
+      return <Component {...forwardedProps} />;
+    };
+
+    const renderDynamic = (props: Record<string, unknown>, ref: unknown) => {
       const { as: asProp, style: externalStyle, ...restProps } = props;
-      const theme = useTheme();
+      const theme = useThemeOrDefault();
 
       // Build final props with theme
       const propsWithTheme: PropsWithTheme = { ...restProps, theme };
       const propsWithAttrs = mergeAttrsWithProps(combinedAttrs, propsWithTheme);
-      const mergedProps = propsWithAttrs;
 
       // Compute and merge dynamic patches
       const dynamicPatch = mergeDynamicPatches(
         baseMetadata,
         getDynamicPatch,
-        mergedProps
+        propsWithAttrs
       );
+
+      const attrsStyle = propsWithAttrs.style as StyleValue;
+      const resolvedExternalStyle = attrsStyle
+        ? ([attrsStyle, externalStyle] as StyleValue)
+        : (externalStyle as StyleValue);
 
       // Build style array with correct priority:
       // 1. Static compiled styles (lowest)
@@ -131,17 +166,27 @@ function styledFunction<C extends ComponentType<any>, P = {}, AttrsP = {}>(
         mergedCompiledStyles,
         mergedStyleKeys,
         dynamicPatch,
-        externalStyle as StyleValue
+        resolvedExternalStyle
       );
 
       // Filter props and add styles
       const forwardedProps = filterProps(propsWithAttrs, ref);
       forwardedProps.style = styles;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const Component = (asProp || (propsWithAttrs.as as ComponentType<any>) || BaseComponent) as ComponentType<any>;
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+      const Component = (asProp ||
+        (propsWithAttrs.as as ComponentType<any>) ||
+        targetComponent) as ComponentType<any>;
+      /* eslint-enable @typescript-eslint/no-explicit-any */
       return <Component {...forwardedProps} />;
-    });
+    };
+
+    // The branch is fixed when the component is created, so every component
+    // has a stable Hook order across renders.
+    const StyledComponent =
+      hasDynamicStyles || hasAttrs
+        ? forwardRef<unknown, Record<string, unknown>>(renderDynamic)
+        : forwardRef<unknown, Record<string, unknown>>(renderStatic);
 
     // Set display name
     StyledComponent.displayName = `Styled(${
@@ -152,18 +197,20 @@ function styledFunction<C extends ComponentType<any>, P = {}, AttrsP = {}>(
     type ComponentWithMethods = typeof StyledComponent & {
       attrs: <NewAttrs extends Record<string, unknown>>(
         attrsArg: NewAttrs | AttrsFunction<P & Partial<NewAttrs>>
-      ) => StyledComponent<C, P, AttrsP & NewAttrs>;
+      ) => StyledComponent<C, P, CurrentAttrsP & NewAttrs>;
       __kstyled_metadata__?: StyleMetadata;
     };
 
     const StyledWithMethods = StyledComponent as ComponentWithMethods;
 
-    StyledWithMethods.attrs = function <NewAttrs extends Record<string, unknown>>(
+    StyledWithMethods.attrs = function <
+      NewAttrs extends Record<string, unknown>,
+    >(
       attrsArg: NewAttrs | AttrsFunction<P & Partial<NewAttrs>>
-    ): StyledComponent<C, P, AttrsP & NewAttrs> {
-      return createStyledComponent({
+    ): StyledComponent<C, P, CurrentAttrsP & NewAttrs> {
+      return createStyledComponent<CurrentAttrsP & NewAttrs>({
         ...metadata,
-        attrs: attrsArg as AttrsValue,
+        attrs: combineAttrs(metadata.attrs, attrsArg as AttrsValue),
       });
     };
 
@@ -173,18 +220,15 @@ function styledFunction<C extends ComponentType<any>, P = {}, AttrsP = {}>(
       getDynamicPatch
     );
 
-    attachMetadata(
-      StyledWithMethods,
-      {
-        compiledStyles: mergedCompiledStyles,
-        styleKeys: mergedStyleKeys,
-        getDynamicPatch: combinedGetDynamicPatch,
-        attrs: combinedAttrs,
-      },
-      BaseComponent
-    );
+    attachMetadata(StyledWithMethods, {
+      compiledStyles: mergedCompiledStyles,
+      styleKeys: mergedStyleKeys,
+      getDynamicPatch: combinedGetDynamicPatch,
+      attrs: combinedAttrs,
+      target: targetComponent,
+    });
 
-    return StyledWithMethods as StyledComponent<C, P, AttrsP>;
+    return StyledWithMethods as StyledComponent<C, P, CurrentAttrsP>;
   }
 
   /**
@@ -193,20 +237,25 @@ function styledFunction<C extends ComponentType<any>, P = {}, AttrsP = {}>(
    */
   const factory = function (
     strings: TemplateStringsArray,
-    ...interpolations: Array<string | number | ((props: Record<string, unknown>) => StyleObject | string | number)>
+    ...interpolations: Array<
+      | string
+      | number
+      | ((props: Record<string, unknown>) => StyleObject | string | number)
+    >
   ): StyledComponent<C, P, AttrsP> {
     // Runtime fallback: parse template literal at runtime
-    console.warn(
-      '[kstyled] Runtime parsing is not recommended. Please enable babel-plugin-kstyled for better performance.'
-    );
+    warnAboutRuntimeFallback();
 
     // Parse CSS at runtime
     const { staticStyles, dynamicGetter } = parseCSS(strings, interpolations);
 
     // Create StyleSheet from static styles
-    const compiledStyles = Object.keys(staticStyles).length > 0
-      ? (StyleSheet.create({ base: staticStyles }) as unknown as CompiledStyles)
-      : undefined;
+    const compiledStyles =
+      Object.keys(staticStyles).length > 0
+        ? (StyleSheet.create({
+            base: staticStyles,
+          }) as unknown as CompiledStyles)
+        : undefined;
 
     // Create metadata
     const metadata: StyleMetadata = {
@@ -216,7 +265,7 @@ function styledFunction<C extends ComponentType<any>, P = {}, AttrsP = {}>(
       attrs: baseAttrs as AttrsValue,
     };
 
-    return createStyledComponent(metadata);
+    return createStyledComponent<AttrsP>(metadata);
   };
 
   /**
@@ -224,12 +273,12 @@ function styledFunction<C extends ComponentType<any>, P = {}, AttrsP = {}>(
    */
   factory.__withStyles = function (
     metadata: StyleMetadata
-  ): StyledComponent<C, P> {
+  ): StyledComponent<C, P, AttrsP> {
     const mergedAttrs = combineAttrs(
       baseAttrs as AttrsValue | undefined,
       metadata.attrs
     );
-    return createStyledComponent({ ...metadata, attrs: mergedAttrs });
+    return createStyledComponent<AttrsP>({ ...metadata, attrs: mergedAttrs });
   };
 
   /**
@@ -240,7 +289,10 @@ function styledFunction<C extends ComponentType<any>, P = {}, AttrsP = {}>(
   ): StyledFactory<C, P, AttrsP & NewAttrs> {
     return styledFunction<C, P, AttrsP & NewAttrs>(
       BaseComponent,
-      attrsArg as AttrsP & NewAttrs
+      combineAttrs(
+        baseAttrs as AttrsValue | undefined,
+        attrsArg as AttrsValue
+      ) as AttrsP & NewAttrs
     );
   };
 
@@ -269,7 +321,17 @@ type StyledShortcuts = {
   Text: ReturnType<typeof styledFunction<typeof Text>>;
   Image: ReturnType<typeof styledFunction<typeof Image>>;
   ImageBackground: ReturnType<typeof styledFunction<typeof ImageBackground>>;
+  ActivityIndicator: ReturnType<
+    typeof styledFunction<typeof ActivityIndicator>
+  >;
+  KeyboardAvoidingView: ReturnType<
+    typeof styledFunction<typeof KeyboardAvoidingView>
+  >;
   ScrollView: ReturnType<typeof styledFunction<typeof ScrollView>>;
+  Switch: ReturnType<typeof styledFunction<typeof Switch>>;
+  TouchableHighlight: ReturnType<
+    typeof styledFunction<typeof TouchableHighlight>
+  >;
   TouchableOpacity: ReturnType<typeof styledFunction<typeof TouchableOpacity>>;
   Pressable: ReturnType<typeof styledFunction<typeof Pressable>>;
   TextInput: ReturnType<typeof styledFunction<typeof TextInput>>;
@@ -280,65 +342,157 @@ type StyledShortcuts = {
 
 // Lazy initialization of styled shortcuts to avoid importing
 // FlatList/SectionList at module load time (prevents Platform.OS issues in tests)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const styledShortcuts: Record<string, ReturnType<typeof styledFunction<ComponentType<any>>>> = {};
+const styledShortcuts: Partial<StyledShortcuts> = {};
 
 // Create the styled object with lazy getters using defineProperty
 export const styled = styledFunction as typeof styledFunction & StyledShortcuts;
 
 // Define lazy getters for each component to avoid eager module loading
 Object.defineProperty(styled, 'View', {
-  get() { return styledShortcuts.View || (styledShortcuts.View = styledFunction(View)); },
+  get() {
+    return (
+      styledShortcuts.View || (styledShortcuts.View = styledFunction(View))
+    );
+  },
   enumerable: true,
-  configurable: true
+  configurable: true,
 });
 Object.defineProperty(styled, 'Text', {
-  get() { return styledShortcuts.Text || (styledShortcuts.Text = styledFunction(Text)); },
+  get() {
+    return (
+      styledShortcuts.Text || (styledShortcuts.Text = styledFunction(Text))
+    );
+  },
   enumerable: true,
-  configurable: true
+  configurable: true,
 });
 Object.defineProperty(styled, 'Image', {
-  get() { return styledShortcuts.Image || (styledShortcuts.Image = styledFunction(Image)); },
+  get() {
+    return (
+      styledShortcuts.Image || (styledShortcuts.Image = styledFunction(Image))
+    );
+  },
   enumerable: true,
-  configurable: true
+  configurable: true,
 });
 Object.defineProperty(styled, 'ImageBackground', {
-  get() { return styledShortcuts.ImageBackground || (styledShortcuts.ImageBackground = styledFunction(ImageBackground)); },
+  get() {
+    return (
+      styledShortcuts.ImageBackground ||
+      (styledShortcuts.ImageBackground = styledFunction(ImageBackground))
+    );
+  },
   enumerable: true,
-  configurable: true
+  configurable: true,
+});
+Object.defineProperty(styled, 'ActivityIndicator', {
+  get() {
+    return (
+      styledShortcuts.ActivityIndicator ||
+      (styledShortcuts.ActivityIndicator = styledFunction(ActivityIndicator))
+    );
+  },
+  enumerable: true,
+  configurable: true,
+});
+Object.defineProperty(styled, 'KeyboardAvoidingView', {
+  get() {
+    return (
+      styledShortcuts.KeyboardAvoidingView ||
+      (styledShortcuts.KeyboardAvoidingView =
+        styledFunction(KeyboardAvoidingView))
+    );
+  },
+  enumerable: true,
+  configurable: true,
 });
 Object.defineProperty(styled, 'ScrollView', {
-  get() { return styledShortcuts.ScrollView || (styledShortcuts.ScrollView = styledFunction(ScrollView)); },
+  get() {
+    return (
+      styledShortcuts.ScrollView ||
+      (styledShortcuts.ScrollView = styledFunction(ScrollView))
+    );
+  },
   enumerable: true,
-  configurable: true
+  configurable: true,
+});
+Object.defineProperty(styled, 'Switch', {
+  get() {
+    return (
+      styledShortcuts.Switch ||
+      (styledShortcuts.Switch = styledFunction(Switch))
+    );
+  },
+  enumerable: true,
+  configurable: true,
+});
+Object.defineProperty(styled, 'TouchableHighlight', {
+  get() {
+    return (
+      styledShortcuts.TouchableHighlight ||
+      (styledShortcuts.TouchableHighlight = styledFunction(TouchableHighlight))
+    );
+  },
+  enumerable: true,
+  configurable: true,
 });
 Object.defineProperty(styled, 'TouchableOpacity', {
-  get() { return styledShortcuts.TouchableOpacity || (styledShortcuts.TouchableOpacity = styledFunction(TouchableOpacity)); },
+  get() {
+    return (
+      styledShortcuts.TouchableOpacity ||
+      (styledShortcuts.TouchableOpacity = styledFunction(TouchableOpacity))
+    );
+  },
   enumerable: true,
-  configurable: true
+  configurable: true,
 });
 Object.defineProperty(styled, 'Pressable', {
-  get() { return styledShortcuts.Pressable || (styledShortcuts.Pressable = styledFunction(Pressable)); },
+  get() {
+    return (
+      styledShortcuts.Pressable ||
+      (styledShortcuts.Pressable = styledFunction(Pressable))
+    );
+  },
   enumerable: true,
-  configurable: true
+  configurable: true,
 });
 Object.defineProperty(styled, 'TextInput', {
-  get() { return styledShortcuts.TextInput || (styledShortcuts.TextInput = styledFunction(TextInput)); },
+  get() {
+    return (
+      styledShortcuts.TextInput ||
+      (styledShortcuts.TextInput = styledFunction(TextInput))
+    );
+  },
   enumerable: true,
-  configurable: true
+  configurable: true,
 });
 Object.defineProperty(styled, 'SafeAreaView', {
-  get() { return styledShortcuts.SafeAreaView || (styledShortcuts.SafeAreaView = styledFunction(SafeAreaView)); },
+  get() {
+    return (
+      styledShortcuts.SafeAreaView ||
+      (styledShortcuts.SafeAreaView = styledFunction(SafeAreaView))
+    );
+  },
   enumerable: true,
-  configurable: true
+  configurable: true,
 });
 Object.defineProperty(styled, 'FlatList', {
-  get() { return styledShortcuts.FlatList || (styledShortcuts.FlatList = styledFunction(FlatList)); },
+  get() {
+    return (
+      styledShortcuts.FlatList ||
+      (styledShortcuts.FlatList = styledFunction(FlatList))
+    );
+  },
   enumerable: true,
-  configurable: true
+  configurable: true,
 });
 Object.defineProperty(styled, 'SectionList', {
-  get() { return styledShortcuts.SectionList || (styledShortcuts.SectionList = styledFunction(SectionList)); },
+  get() {
+    return (
+      styledShortcuts.SectionList ||
+      (styledShortcuts.SectionList = styledFunction(SectionList))
+    );
+  },
   enumerable: true,
-  configurable: true
+  configurable: true,
 });

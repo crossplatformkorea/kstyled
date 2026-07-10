@@ -1,272 +1,224 @@
-import { useState } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import {
+  Profiler,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type ProfilerOnRenderCallback,
+} from 'react';
 import { styled } from 'kstyled';
-import { useRouter } from 'expo-router';
-import * as KStyledComponents from '../../src/components/kstyled';
-import * as StyledComponents from '../../src/components/styled-components';
-import * as EmotionComponents from '../../src/components/emotion';
-import { generateCardData, generateStaticCards } from '../../src/components/types';
-import { StyledComponentsIcon, EmotionIcon } from '../../src/icons';
+import {
+  BodyText,
+  Content,
+  DataLabel,
+  DataRow,
+  DataValue,
+  PageHeader,
+  PanelTitle,
+  Screen,
+  Section,
+  SectionHeader,
+  SectionMeta,
+  SectionTitle,
+  SegmentedControl,
+  ToolPanel,
+} from '../../src/ui';
 
-const Container = styled.View`
-  flex: 1;
-  background-color: #f2f2f7;
+type SampleCount = '60' | '180' | '360';
+type RenderMode = 'static' | 'dynamic';
+
+interface Measurement {
+  actual: number;
+  base: number;
+  phase: string;
+}
+
+const Control = styled.View`
+  margin-top: 16px;
 `;
 
-const Header = styled.View`
-  padding: 16px;
-  background-color: #ffffff;
-  border-bottom-width: 1px;
-  border-bottom-color: #c6c6c8;
-`;
-
-const Title = styled.Text`
-  font-size: 24px;
-  font-weight: bold;
-  color: #000000;
-  margin-bottom: 8px;
-`;
-
-const Subtitle = styled.Text`
-  font-size: 14px;
-  color: #8e8e93;
-`;
-
-const Section = styled.View`
-  padding: 16px;
-  background-color: #ffffff;
-  margin: 16px;
-  border-radius: 12px;
-`;
-
-const SectionTitle = styled.Text`
-  font-size: 18px;
-  font-weight: 700;
-  color: #000000;
-  margin-bottom: 8px;
-`;
-
-const SectionDescription = styled.Text`
-  font-size: 13px;
-  color: #8e8e93;
-  line-height: 18px;
-  margin-bottom: 12px;
-`;
-
-const Button = styled.Pressable<{ $variant?: 'primary' | 'secondary' }>`
-  padding: 14px 16px;
-  background-color: ${(p: { $variant?: 'primary' | 'secondary' }) =>
-    p.$variant === 'secondary' ? '#8E8E93' : '#007AFF'};
-  border-radius: 8px;
-  margin-bottom: 8px;
-  align-items: center;
-`;
-
-const ButtonTitle = styled.Text`
-  font-size: 15px;
+const ControlLabel = styled.Text`
+  margin-bottom: 7px;
+  color: ${(p) => p.theme.colors.inkMuted};
+  font-size: 12px;
   font-weight: 600;
-  color: #FFFFFF;
-  margin-bottom: 2px;
 `;
 
-const ComparisonButton = styled.Pressable`
-  padding: 14px 16px;
-  background-color: #f2f2f7;
+const RunButton = styled.Pressable`
+  min-height: 44px;
+  margin-top: 14px;
+  border-radius: 7px;
+  align-items: center;
+  justify-content: center;
+  background-color: ${(p) => p.theme.colors.accent};
+`;
+
+const RunLabel = styled.Text`
+  color: ${(p) => p.theme.colors.onAccent};
+  font-size: 14px;
+  font-weight: 700;
+`;
+
+const ListSurface = styled.View`
+  overflow: hidden;
   border-radius: 8px;
-  margin-bottom: 8px;
   border-width: 1px;
-  border-color: #e5e5e5;
+  border-color: ${(p) => p.theme.colors.border};
+  background-color: ${(p) => p.theme.colors.surface};
+`;
+
+const StaticRow = styled.View`
+  height: 38px;
+  padding-horizontal: 12px;
+  border-bottom-width: 1px;
+  border-bottom-color: ${(p) => p.theme.colors.border};
   flex-direction: row;
   align-items: center;
+  justify-content: space-between;
 `;
 
-const ComparisonButtonIcon = styled.Image`
-  width: 32px;
-  height: 32px;
-  margin-right: 12px;
+const DynamicRow = styled(StaticRow)<{ $selected: boolean }>`
+  background-color: ${(p) =>
+    p.$selected ? p.theme.colors.surfaceMuted : p.theme.colors.surface};
+  transform: translateX(${(p) => (p.$selected ? 2 : 0)}px);
 `;
 
-const ComparisonButtonContent = styled.View`
-  flex: 1;
-`;
-
-const ComparisonButtonTitle = styled.Text`
-  font-size: 15px;
-  font-weight: 600;
-  color: #007aff;
-  margin-bottom: 2px;
-`;
-
-const ComparisonButtonSubtitle = styled.Text`
+const RowLabel = styled.Text`
+  color: ${(p) => p.theme.colors.ink};
   font-size: 12px;
-  color: #8e8e93;
-`;
-
-const LibrarySection = styled.View`
-  background-color: #ffffff;
-  margin: 16px;
-  padding: 16px;
-  border-radius: 12px;
-`;
-
-const LibraryLabel = styled.View<{ $color: string }>`
-  padding: 8px 16px;
-  border-radius: 8px;
-  align-items: center;
-  margin-bottom: 12px;
-  background-color: ${(p: { $color: string }) => p.$color};
-`;
-
-const LibraryLabelText = styled.Text`
-  font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+`;
+
+const RowValue = styled.Text`
+  color: ${(p) => p.theme.colors.inkMuted};
+  font-family: monospace;
+  font-size: 11px;
 `;
 
 export default function PerformanceScreen() {
-  const router = useRouter();
-  const [showCards, setShowCards] = useState(false);
-  const [cardType, setCardType] = useState<'dynamic' | 'static'>('dynamic');
+  const [sampleCount, setSampleCount] = useState<SampleCount>('60');
+  const [mode, setMode] = useState<RenderMode>('static');
+  const [revision, setRevision] = useState(0);
+  const [measurement, setMeasurement] = useState<Measurement | null>(null);
+  const shouldCapture = useRef(true);
+  const count = Number(sampleCount);
+  const rows = useMemo(
+    () => Array.from({ length: count }, (_, index) => index),
+    [count]
+  );
 
-  // 각 라이브러리당 하나의 카드만 생성
-  const sampleCard = generateCardData(1)[0];
-  const staticCard = generateStaticCards(1)[0];
+  const captureNext = useCallback((update: () => void) => {
+    shouldCapture.current = true;
+    update();
+  }, []);
+
+  const onRender = useCallback<ProfilerOnRenderCallback>(
+    (_id, phase, actualDuration, baseDuration) => {
+      if (!shouldCapture.current) return;
+      shouldCapture.current = false;
+      const next = { actual: actualDuration, base: baseDuration, phase };
+      setTimeout(() => setMeasurement(next), 0);
+    },
+    []
+  );
 
   return (
-    <Container>
-      <ScrollView>
-        <Header>
-          <Title>⚡️ Performance Benchmark</Title>
-          <Subtitle>
-            Compare kstyled with StyleSheet and other popular libraries
-          </Subtitle>
-        </Header>
-
-        {/* Library Comparison Section */}
+    <Screen>
+      <PageHeader
+        title="Render profiler"
+        subtitle="Measure React commit duration on the current device. Compare repeated runs under the same simulator conditions."
+      />
+      <Content>
         <Section>
-          <SectionTitle>Library Comparison</SectionTitle>
-          <SectionDescription>
-            Compare the same card component rendered by each library
-          </SectionDescription>
-
-          {/* Card Type Selection */}
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-            <Pressable
-              style={{
-                flex: 1,
-                padding: 10,
-                borderRadius: 8,
-                backgroundColor: cardType === 'dynamic' ? '#007AFF' : '#F2F2F7',
-                alignItems: 'center',
-              }}
-              onPress={() => setCardType('dynamic')}
+          <SectionHeader>
+            <SectionTitle>Profiler controls</SectionTitle>
+            <SectionMeta>device local</SectionMeta>
+          </SectionHeader>
+          <ToolPanel>
+            <PanelTitle>Render workload</PanelTitle>
+            <BodyText>
+              Static mode reads registered styles. Dynamic mode evaluates one
+              transient prop and transform per row.
+            </BodyText>
+            <Control>
+              <ControlLabel>Rows</ControlLabel>
+              <SegmentedControl
+                value={sampleCount}
+                options={['60', '180', '360'] as const}
+                onChange={(value) => captureNext(() => setSampleCount(value))}
+                label="Rendered row count"
+              />
+            </Control>
+            <Control>
+              <ControlLabel>Style path</ControlLabel>
+              <SegmentedControl
+                value={mode}
+                options={['static', 'dynamic'] as const}
+                onChange={(value) => captureNext(() => setMode(value))}
+                label="Style path"
+              />
+            </Control>
+            <RunButton
+              accessibilityRole="button"
+              onPress={() =>
+                captureNext(() => setRevision((value) => value + 1))
+              }
             >
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: '600',
-                  color: cardType === 'dynamic' ? '#FFF' : '#000',
-                }}
-              >
-                Dynamic Props
-              </Text>
-            </Pressable>
-            <Pressable
-              style={{
-                flex: 1,
-                padding: 10,
-                borderRadius: 8,
-                backgroundColor: cardType === 'static' ? '#007AFF' : '#F2F2F7',
-                alignItems: 'center',
-              }}
-              onPress={() => setCardType('static')}
-            >
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: '600',
-                  color: cardType === 'static' ? '#FFF' : '#000',
-                }}
-              >
-                Static Styles
-              </Text>
-            </Pressable>
-          </View>
+              <RunLabel>Run commit</RunLabel>
+            </RunButton>
 
-          <Button onPress={() => setShowCards(!showCards)}>
-            <ButtonTitle>{showCards ? 'Hide Cards' : 'Show Cards'}</ButtonTitle>
-          </Button>
+            <DataRow>
+              <DataLabel>last actual duration</DataLabel>
+              <DataValue $tone="accent">
+                {measurement
+                  ? `${measurement.actual.toFixed(2)} ms`
+                  : 'pending'}
+              </DataValue>
+            </DataRow>
+            <DataRow>
+              <DataLabel>base duration</DataLabel>
+              <DataValue>
+                {measurement ? `${measurement.base.toFixed(2)} ms` : 'pending'}
+              </DataValue>
+            </DataRow>
+            <DataRow>
+              <DataLabel>phase</DataLabel>
+              <DataValue>{measurement?.phase ?? 'mount'}</DataValue>
+            </DataRow>
+          </ToolPanel>
         </Section>
 
-        {/* Cards Preview - Show all libraries */}
-        {showCards && (
-          <>
-            {/* kstyled */}
-            <LibrarySection>
-              <LibraryLabel $color="#007AFF">
-                <LibraryLabelText>kstyled (Compile-time)</LibraryLabelText>
-              </LibraryLabel>
-              {cardType === 'dynamic' ? (
-                <KStyledComponents.DynamicCard data={sampleCard} index={0} />
-              ) : (
-                <KStyledComponents.StaticCardRenderer data={staticCard} />
-              )}
-            </LibrarySection>
-
-            {/* styled-components */}
-            <LibrarySection>
-              <LibraryLabel $color="#FF9500">
-                <LibraryLabelText>styled-components (Runtime)</LibraryLabelText>
-              </LibraryLabel>
-              {cardType === 'dynamic' ? (
-                <StyledComponents.DynamicCard data={sampleCard} index={0} />
-              ) : (
-                <StyledComponents.StaticCardRenderer data={staticCard} />
-              )}
-            </LibrarySection>
-
-            {/* Emotion */}
-            <LibrarySection>
-              <LibraryLabel $color="#34C759">
-                <LibraryLabelText>Emotion (Runtime)</LibraryLabelText>
-              </LibraryLabel>
-              {cardType === 'dynamic' ? (
-                <EmotionComponents.DynamicCard data={sampleCard} index={0} />
-              ) : (
-                <EmotionComponents.StaticCardRenderer data={staticCard} />
-              )}
-            </LibrarySection>
-          </>
-        )}
-
-        {/* Comparison Section */}
         <Section>
-          <SectionTitle>Compare with Other Libraries</SectionTitle>
-          <SectionDescription>
-            See how kstyled compares against popular runtime CSS-in-JS libraries
-          </SectionDescription>
-          <ComparisonButton
-            onPress={() => router.push('/performance/styled-components')}
-          >
-            <ComparisonButtonIcon source={StyledComponentsIcon} />
-            <ComparisonButtonContent>
-              <ComparisonButtonTitle>vs styled-components</ComparisonButtonTitle>
-              <ComparisonButtonSubtitle>
-                Compare with styled-components runtime styling
-              </ComparisonButtonSubtitle>
-            </ComparisonButtonContent>
-          </ComparisonButton>
-          <ComparisonButton onPress={() => router.push('/performance/emotion')}>
-            <ComparisonButtonIcon source={EmotionIcon} />
-            <ComparisonButtonContent>
-              <ComparisonButtonTitle>vs Emotion</ComparisonButtonTitle>
-              <ComparisonButtonSubtitle>
-                Compare with @emotion/native runtime styling
-              </ComparisonButtonSubtitle>
-            </ComparisonButtonContent>
-          </ComparisonButton>
+          <SectionHeader>
+            <SectionTitle>Rendered rows</SectionTitle>
+            <SectionMeta>{count} mounted</SectionMeta>
+          </SectionHeader>
+          <Profiler id="kstyled-list" onRender={onRender}>
+            <ListSurface>
+              {rows.map((index) =>
+                mode === 'static' ? (
+                  <StaticRow key={index}>
+                    <RowLabel>
+                      package-{String(index + 1).padStart(3, '0')}
+                    </RowLabel>
+                    <RowValue>r{revision}</RowValue>
+                  </StaticRow>
+                ) : (
+                  <DynamicRow
+                    key={index}
+                    $selected={(index + revision) % 7 === 0}
+                  >
+                    <RowLabel>
+                      package-{String(index + 1).padStart(3, '0')}
+                    </RowLabel>
+                    <RowValue>r{revision}</RowValue>
+                  </DynamicRow>
+                )
+              )}
+            </ListSurface>
+          </Profiler>
         </Section>
-      </ScrollView>
-    </Container>
+      </Content>
+    </Screen>
   );
 }

@@ -9,8 +9,10 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 /**
  * Props for ThemeProvider component
  */
-export interface ThemeProviderProps {
-  theme: DefaultTheme;
+export interface ThemeProviderProps<
+  TTheme extends DefaultTheme = DefaultTheme,
+> {
+  theme: TTheme;
   children: ReactNode;
 }
 
@@ -31,7 +33,10 @@ export interface ThemeProviderProps {
  * </ThemeProvider>
  * ```
  */
-export function ThemeProvider({ theme, children }: ThemeProviderProps) {
+export function ThemeProvider<TTheme extends DefaultTheme = DefaultTheme>({
+  theme,
+  children,
+}: ThemeProviderProps<TTheme>) {
   const contextValue = React.useMemo<ThemeContextValue>(
     () => ({ theme }),
     [theme]
@@ -58,14 +63,14 @@ export function ThemeProvider({ theme, children }: ThemeProviderProps) {
  * }
  * ```
  */
-export function useTheme(): DefaultTheme {
+export function useTheme<TTheme extends DefaultTheme = DefaultTheme>(): TTheme {
   const context = useContext(ThemeContext);
 
   if (!context) {
     throw new Error('useTheme must be used within a ThemeProvider');
   }
 
-  return context.theme;
+  return context.theme as TTheme;
 }
 
 /**
@@ -78,6 +83,21 @@ export const defaultTheme: DefaultTheme = {
   fontSizes: {},
   fonts: {},
 };
+
+/** Preserve literal theme types while validating the kstyled theme shape. */
+export function defineTheme<TTheme extends DefaultTheme>(
+  theme: TTheme
+): TTheme {
+  return theme;
+}
+
+/**
+ * Internal theme lookup for styled components. Dynamic props should work
+ * without forcing consumers to install a ThemeProvider.
+ */
+export function useThemeOrDefault(): DefaultTheme {
+  return useContext(ThemeContext)?.theme ?? defaultTheme;
+}
 
 /**
  * Get theme from context or return default theme

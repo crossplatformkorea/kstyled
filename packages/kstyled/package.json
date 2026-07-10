@@ -1,23 +1,36 @@
 {
   "name": "kstyled",
-  "version": "0.3.8",
-  "description": "Compile-time CSS-in-JS for React Native - styled-components with zero runtime overhead",
+  "version": "0.4.0-beta.1",
+  "type": "commonjs",
+  "description": "Compile-time CSS-in-JS for React Native with a small, predictable runtime",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
-    }
+      "react-native": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "README.md"
   ],
+  "sideEffects": false,
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts --clean --minify",
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean --minify --sourcemap",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
     "test": "jest --passWithNoTests",
@@ -26,17 +39,26 @@
   "keywords": [
     "react-native",
     "styled-components",
+    "css-in-js",
+    "expo",
     "stylesheet",
-    "performance"
+    "performance",
+    "typescript"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/hyodotdev/kstyled.git",
+    "url": "git+https://github.com/crossplatformkorea/kstyled.git",
     "directory": "packages/kstyled"
   },
-  "homepage": "https://hyodotdev.github.io/kstyled",
+  "homepage": "https://crossplatformkorea.github.io/kstyled",
   "author": "hyodotdev (https://hyo.dev)",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "peerDependencies": {
     "react": ">=17.0.0",
     "react-native": ">=0.64.0"
