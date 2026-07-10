@@ -89,8 +89,9 @@ jobs:
           fi
 
       - name: Ensure npm supports trusted publishing
-        if: ${{ !inputs.dry_run }}
-        run: npm install --global npm@latest
+        run: |
+          npm install --global npm@11.18.0
+          npm --version
 
       - name: Publish kstyled
         if: ${{ !inputs.dry_run }}
