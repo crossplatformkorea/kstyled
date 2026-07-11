@@ -2,7 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
-## 0.4.0-beta.1 - 2026-07-10
+## 0.4.0-beta.1 - 2026-07-11
+
+### Upgrade
+
+Install the runtime and compiler at the same version. The stable `latest`
+dist-tag remains on `0.3.8` during beta validation.
+
+```bash
+pnpm add kstyled@0.4.0-beta.1
+pnpm add -D babel-plugin-kstyled@0.4.0-beta.1
+```
 
 ### Added
 
@@ -39,3 +49,6 @@ All notable changes to this project are documented in this file.
 - `optimizeStatic`, `autoHoist`, and `platformStyles` remain accepted as
   deprecated configuration keys. Static components now use the
   API-compatible runtime fast path.
+
+See the [full release notes](./packages/docs/docs/releases/0.4.0-beta.1.md)
+for migration guidance and the beta validation checklist.

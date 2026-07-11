@@ -36,7 +36,17 @@ const config: Config = {
             'https://github.com/crossplatformkorea/kstyled/tree/main/packages/docs/',
           routeBasePath: '/',
         },
-        blog: false,
+        blog: {
+          routeBasePath: 'blog',
+          showReadingTime: true,
+          blogTitle: 'kstyled releases',
+          blogDescription:
+            'Release announcements and engineering notes from the kstyled maintainers.',
+          feedOptions: {
+            type: ['rss', 'atom'],
+            copyright: `Copyright © ${new Date().getFullYear()} Cross Platform Korea.`,
+          },
+        },
         theme: {
           customCss: './src/css/custom.css',
         },
@@ -61,6 +71,11 @@ const config: Config = {
           label: 'Docs',
         },
         {
+          to: '/blog',
+          label: 'Blog',
+          position: 'left',
+        },
+        {
           href: 'https://github.com/crossplatformkorea/kstyled',
           label: 'GitHub',
           position: 'right',
@@ -80,6 +95,14 @@ const config: Config = {
             {
               label: 'API Reference',
               to: '/kstyled/api',
+            },
+            {
+              label: 'Release notes',
+              to: '/kstyled/releases/0.4.0-beta.1',
+            },
+            {
+              label: 'Blog',
+              to: '/kstyled/blog',
             },
           ],
         },

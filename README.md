@@ -112,6 +112,7 @@ function Status({ active }: { active: boolean }) {
 - Includes an API-compatible runtime fallback with one actionable warning.
 
 See the [documentation](https://crossplatformkorea.github.io/kstyled),
+[0.4 beta release notes](https://crossplatformkorea.github.io/kstyled/releases/0.4.0-beta.1),
 [changelog](./CHANGELOG.md), and [example app](./packages/example).
 
 ## License

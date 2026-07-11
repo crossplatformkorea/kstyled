@@ -1,4 +1,4 @@
-import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
+import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 
 const sidebars: SidebarsConfig = {
   tutorialSidebar: [
@@ -10,10 +10,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Getting Started',
-      items: [
-        'getting-started/installation',
-        'getting-started/basic-usage',
-      ],
+      items: ['getting-started/installation', 'getting-started/basic-usage'],
     },
     {
       type: 'category',
@@ -36,6 +33,11 @@ const sidebars: SidebarsConfig = {
       type: 'doc',
       id: 'performance',
       label: 'Performance',
+    },
+    {
+      type: 'category',
+      label: 'Release notes',
+      items: ['releases/0.4.0-beta.1'],
     },
     {
       type: 'doc',
