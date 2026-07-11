@@ -2,16 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
-## 0.4.0-beta.1 - 2026-07-11
+## 0.4.0 - 2026-07-11
 
 ### Upgrade
 
-Install the runtime and compiler at the same version. The stable `latest`
-dist-tag remains on `0.3.8` during beta validation.
+Install the runtime and compiler at the same version.
 
 ```bash
-pnpm add kstyled@0.4.0-beta.1
-pnpm add -D babel-plugin-kstyled@0.4.0-beta.1
+pnpm add kstyled@0.4.0
+pnpm add -D babel-plugin-kstyled@0.4.0
 ```
 
 ### Added
@@ -21,7 +20,7 @@ pnpm add -D babel-plugin-kstyled@0.4.0-beta.1
 - Add `defineTheme` and generic `useTheme` typing.
 - Add ActivityIndicator, KeyboardAvoidingView, Switch, and
   TouchableHighlight styled shortcuts.
-- Publish package export maps, source maps, and a dedicated `beta` dist-tag.
+- Publish package export maps, source maps, and provenance from CI.
 
 ### Fixed
 
@@ -50,5 +49,5 @@ pnpm add -D babel-plugin-kstyled@0.4.0-beta.1
   deprecated configuration keys. Static components now use the
   API-compatible runtime fast path.
 
-See the [full release notes](./packages/docs/docs/releases/0.4.0-beta.1.md)
+See the [full release notes](./packages/docs/docs/releases/0.4.0.md)
 for migration guidance and the beta validation checklist.

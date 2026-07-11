@@ -10,14 +10,14 @@ styled-components authoring model while extracting static declarations to
 `StyleSheet.create` and reducing dynamic templates to small native style
 patches.
 
-> `0.4.0-beta.1` is available on the `beta` dist-tag. The stable `latest`
-> release remains on `0.3.x` while the beta is validated in production apps.
+> `0.4.0` is the current stable release on the `latest` dist-tag. Install the
+> runtime and compiler at the same version.
 
-## Install the beta
+## Install
 
 ```bash
-pnpm add kstyled@beta
-pnpm add -D babel-plugin-kstyled@beta
+pnpm add kstyled@0.4.0
+pnpm add -D babel-plugin-kstyled@0.4.0
 ```
 
 Configure the compiler before plugins that must run last, such as Reanimated:
@@ -102,7 +102,7 @@ function Status({ active }: { active: boolean }) {
 }
 ```
 
-## Beta highlights
+## 0.4 highlights
 
 - Compiles function-scoped `css` templates to direct native style expressions.
 - Preserves `attrs`, `as`, refs, transient props, and styled extension APIs.
@@ -112,7 +112,7 @@ function Status({ active }: { active: boolean }) {
 - Includes an API-compatible runtime fallback with one actionable warning.
 
 See the [documentation](https://crossplatformkorea.github.io/kstyled),
-[0.4 beta release notes](https://crossplatformkorea.github.io/kstyled/releases/0.4.0-beta.1),
+[0.4 release notes](https://crossplatformkorea.github.io/kstyled/releases/0.4.0),
 [changelog](./CHANGELOG.md), and [example app](./packages/example).
 
 ## License

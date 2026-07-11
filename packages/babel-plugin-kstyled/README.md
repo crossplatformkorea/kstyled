@@ -3,7 +3,7 @@
 Compile `kstyled` and inline `css` templates to React Native style expressions.
 
 ```bash
-pnpm add -D babel-plugin-kstyled@beta
+pnpm add -D babel-plugin-kstyled@0.4.0
 ```
 
 ```js

@@ -3,8 +3,8 @@
 Runtime and type package for compile-time React Native styling.
 
 ```bash
-pnpm add kstyled@beta
-pnpm add -D babel-plugin-kstyled@beta
+pnpm add kstyled@0.4.0
+pnpm add -D babel-plugin-kstyled@0.4.0
 ```
 
 ```js

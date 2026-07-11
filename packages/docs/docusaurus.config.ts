@@ -98,7 +98,7 @@ const config: Config = {
             },
             {
               label: 'Release notes',
-              to: '/kstyled/releases/0.4.0-beta.1',
+              to: '/kstyled/releases/0.4.0',
             },
             {
               label: 'Blog',
