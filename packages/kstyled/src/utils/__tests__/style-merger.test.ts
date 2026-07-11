@@ -42,6 +42,17 @@ describe('expandShorthandProperties', () => {
         paddingBottom: 8,
       });
     });
+
+    it('should expand a multi-value padding string', () => {
+      const result = expandShorthandProperties({ padding: '12px 24px' });
+
+      expect(result).toEqual({
+        paddingTop: 12,
+        paddingRight: 24,
+        paddingBottom: 12,
+        paddingLeft: 24,
+      });
+    });
   });
 
   describe('margin shorthand expansion', () => {

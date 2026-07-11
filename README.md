@@ -10,14 +10,14 @@ styled-components authoring model while extracting static declarations to
 `StyleSheet.create` and reducing dynamic templates to small native style
 patches.
 
-> `0.4.0` is the current stable release on the `latest` dist-tag. Install the
+> `0.4.1` is the current stable release on the `latest` dist-tag. Install the
 > runtime and compiler at the same version.
 
 ## Install
 
 ```bash
-pnpm add kstyled@0.4.0
-pnpm add -D babel-plugin-kstyled@0.4.0
+pnpm add kstyled@0.4.1
+pnpm add -D babel-plugin-kstyled@0.4.1
 ```
 
 Configure the compiler before plugins that must run last, such as Reanimated:
@@ -112,7 +112,7 @@ function Status({ active }: { active: boolean }) {
 - Includes an API-compatible runtime fallback with one actionable warning.
 
 See the [documentation](https://crossplatformkorea.github.io/kstyled),
-[0.4 release notes](https://crossplatformkorea.github.io/kstyled/releases/0.4.0),
+[0.4 release notes](https://crossplatformkorea.github.io/kstyled/releases/0.4.1),
 [changelog](./CHANGELOG.md), and [example app](./packages/example).
 
 ## License

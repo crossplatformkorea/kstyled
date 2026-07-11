@@ -72,7 +72,7 @@ export const BrandName = styled.Text`
   font-weight: 700;
 `;
 
-export const BetaBadge = styled.View`
+export const VersionBadge = styled.View`
   height: 22px;
   padding-horizontal: 7px;
   margin-left: 7px;
@@ -82,7 +82,7 @@ export const BetaBadge = styled.View`
   background-color: ${(p) => p.theme.colors.surfaceMuted};
 `;
 
-export const BetaText = styled.Text`
+export const VersionText = styled.Text`
   color: ${(p) => p.theme.colors.accent};
   font-size: 11px;
   font-weight: 700;
@@ -323,9 +323,9 @@ export function AppHeader() {
               <BrandMarkText>K</BrandMarkText>
             </BrandMark>
             <BrandName>kstyled</BrandName>
-            <BetaBadge>
-              <BetaText>beta</BetaText>
-            </BetaBadge>
+            <VersionBadge>
+              <VersionText>0.4.1</VersionText>
+            </VersionBadge>
           </BrandLockup>
           <ThemeToggle />
         </BrandRow>

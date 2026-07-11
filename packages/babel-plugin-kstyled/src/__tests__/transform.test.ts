@@ -227,6 +227,25 @@ describe('babel-plugin-kstyled', () => {
         "css.__normalizeStyleValue(\"opacity\", loading ? '0' : '1')"
       );
     });
+
+    test('should expand a dynamic shorthand value at runtime', () => {
+      const input = `
+        import { css } from 'kstyled';
+
+        const getStyle = (spacing: string) => css\`
+          padding: \${spacing};
+        \`;
+      `;
+
+      const output = transform(input);
+
+      expect(output).toContain(
+        '...css.__normalizeStyleDeclaration("padding", spacing)'
+      );
+      expect(output).not.toContain(
+        'padding: css.__normalizeStyleValue("padding", spacing)'
+      );
+    });
   });
 
   describe('Dynamic Style Generation', () => {

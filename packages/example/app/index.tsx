@@ -294,7 +294,7 @@ export default function HomeScreen() {
                     ? 'Building package...'
                     : state === 'disabled'
                       ? 'Release unavailable'
-                      : 'Build beta package'}
+                      : 'Build release package'}
                 </DemoActionText>
               </DemoAction>
             </PreviewSurface>

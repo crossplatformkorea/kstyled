@@ -1,7 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { CompiledStyles } from './types';
 import type { StyleObject, StyleValue } from './types/styled-types';
-import { normalizeStyleProperty, parseCSS } from './css-runtime-parser';
+import {
+  normalizeStyleDeclaration,
+  normalizeStyleProperty,
+  parseCSS,
+} from './css-runtime-parser';
 
 /**
  * Global debug flag for fallback CSS runtime parser
@@ -37,6 +41,12 @@ interface CssFactory {
 
   /** @internal Used by babel-plugin-kstyled for dynamic css`` values. */
   __normalizeStyleValue(property: string, value: any): any;
+
+  /** @internal Used by babel-plugin-kstyled for dynamic box shorthands. */
+  __normalizeStyleDeclaration(
+    property: string,
+    value: any
+  ): Record<string, any>;
 
   /**
    * Fallback: Called when used as tagged template without Babel transform
@@ -112,7 +122,7 @@ export const css: CssFactory = Object.assign(
 
       if (dynamicStyles) {
         for (const [key, value] of Object.entries(dynamicStyles)) {
-          styleObject[key] = normalizeStyleProperty(key, value);
+          Object.assign(styleObject, normalizeStyleDeclaration(key, value));
         }
       }
 
@@ -127,6 +137,7 @@ export const css: CssFactory = Object.assign(
     }
   },
   {
+    __normalizeStyleDeclaration: normalizeStyleDeclaration,
     __normalizeStyleValue: normalizeStyleProperty,
     __withStyles: function (metadata: CssMetadata): any {
       const { compiledStyles, styleKeys, getDynamicPatch } = metadata;

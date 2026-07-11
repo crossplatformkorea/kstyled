@@ -295,9 +295,10 @@ function generateDynamicStyleObject(
   expressionMap: Map<string, t.Expression>,
   dynamicProps: Array<{ key: string; placeholder: string }>,
   propsArgument: t.Expression,
-  normalizer?: t.Expression
+  normalizer?: t.Expression,
+  declarationNormalizer?: t.Expression
 ): t.ObjectExpression | undefined {
-  const properties: t.ObjectProperty[] = [];
+  const properties: Array<t.ObjectProperty | t.SpreadElement> = [];
 
   for (const { key, placeholder } of dynamicProps) {
     const expression = resolveDynamicValue(
@@ -307,6 +308,18 @@ function generateDynamicStyleObject(
       propsArgument
     );
     if (expression) {
+      if (declarationNormalizer && (key === 'padding' || key === 'margin')) {
+        properties.push(
+          t.spreadElement(
+            t.callExpression(t.cloneNode(declarationNormalizer), [
+              t.stringLiteral(key),
+              expression,
+            ])
+          )
+        );
+        continue;
+      }
+
       const normalizedExpression = normalizer
         ? t.callExpression(t.cloneNode(normalizer), [
             t.stringLiteral(key),
@@ -494,6 +507,10 @@ export default function babelPluginKStyled(): PluginObj<PluginState> {
               t.memberExpression(
                 t.identifier(state.cssImportName!),
                 t.identifier('__normalizeStyleValue')
+              ),
+              t.memberExpression(
+                t.identifier(state.cssImportName!),
+                t.identifier('__normalizeStyleDeclaration')
               )
             );
 

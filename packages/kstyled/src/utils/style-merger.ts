@@ -8,6 +8,7 @@ import type {
 } from '../types/styled-types';
 import type { CompiledStyles } from '../types';
 import {
+  normalizeStyleDeclaration,
   normalizeStyleProperty,
   normalizeStyleValue,
 } from '../css-runtime-parser';
@@ -53,17 +54,11 @@ export function expandShorthandProperties(styleObj: any): any {
 
       // Expand padding shorthand to all four sides
       if (key === 'padding') {
-        result.paddingTop = value;
-        result.paddingRight = value;
-        result.paddingBottom = value;
-        result.paddingLeft = value;
+        Object.assign(result, normalizeStyleDeclaration(key, value));
       }
       // Expand margin shorthand to all four sides
       else if (key === 'margin') {
-        result.marginTop = value;
-        result.marginRight = value;
-        result.marginBottom = value;
-        result.marginLeft = value;
+        Object.assign(result, normalizeStyleDeclaration(key, value));
       }
       // Expand paddingHorizontal to paddingLeft + paddingRight
       else if (key === 'paddingHorizontal') {
@@ -207,7 +202,7 @@ function normalizeStyleObject(
       }
     }
   }
-  return normalized || styleObj;
+  return expandShorthandProperties(normalized || styleObj);
 }
 
 /**

@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## 0.4.1 - 2026-07-11
+
+### Fixed
+
+- Expand runtime-computed `padding` and `margin` values such as
+  `"12px 24px"` into React Native longhand properties.
+- Compile dynamic box shorthands used by function-scoped `css` templates
+  without passing unsupported multi-value strings to Fabric.
+- Apply the same shorthand normalization to styled-component dynamic patches,
+  runtime fallback styles, and externally merged style objects.
+
+See the [patch release notes](./packages/docs/docs/releases/0.4.1.md) for the
+affected authoring patterns and upgrade guidance.
+
 ## 0.4.0 - 2026-07-11
 
 ### Upgrade

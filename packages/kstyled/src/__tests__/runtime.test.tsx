@@ -4,6 +4,7 @@ import { styled } from '../styled';
 import { css } from '../css';
 import type { CompiledStyles, StyleMetadata } from '../types';
 import {
+  normalizeStyleDeclaration,
   normalizeStyleProperty,
   normalizeStyleValue,
 } from '../css-runtime-parser';
@@ -744,9 +745,39 @@ describe('kstyled Runtime Tests', () => {
       expect(normalizeStyleValue('#FF0000')).toBe('#FF0000');
       expect(normalizeStyleValue('transparent')).toBe('transparent');
     });
+
+    test('should expand dynamic padding and margin shorthand values', () => {
+      expect(normalizeStyleDeclaration('padding', '12px 24px')).toEqual({
+        paddingTop: 12,
+        paddingRight: 24,
+        paddingBottom: 12,
+        paddingLeft: 24,
+      });
+      expect(normalizeStyleDeclaration('margin', '4px 8px 12px')).toEqual({
+        marginTop: 4,
+        marginRight: 8,
+        marginBottom: 12,
+        marginLeft: 8,
+      });
+    });
   });
 
   describe('Dynamic styles with string px values', () => {
+    test('should expand dynamic shorthand from getDynamicPatch', () => {
+      const normalized = mergeDynamicPatches(
+        {},
+        () => ({ padding: '12px 24px' }) as any,
+        {} as any
+      );
+
+      expect(normalized).toEqual({
+        paddingTop: 12,
+        paddingRight: 24,
+        paddingBottom: 12,
+        paddingLeft: 24,
+      });
+    });
+
     test('should normalize string px values from getDynamicPatch', () => {
       const getDynamicPatch = (props: any): any => ({
         width: props.$size === 'small' ? '16px' : '20px',

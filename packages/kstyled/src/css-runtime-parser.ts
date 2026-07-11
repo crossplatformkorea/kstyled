@@ -171,8 +171,18 @@ function expandShorthand(
     if (parts.length === 2) {
       // padding: vertical horizontal
       return {
-        paddingVertical: parts[0],
-        paddingHorizontal: parts[1],
+        paddingTop: parts[0],
+        paddingRight: parts[1],
+        paddingBottom: parts[0],
+        paddingLeft: parts[1],
+      };
+    } else if (parts.length === 3) {
+      // padding: top horizontal bottom
+      return {
+        paddingTop: parts[0],
+        paddingRight: parts[1],
+        paddingBottom: parts[2],
+        paddingLeft: parts[1],
       };
     } else if (parts.length === 4) {
       // padding: top right bottom left
@@ -187,8 +197,18 @@ function expandShorthand(
     if (parts.length === 2) {
       // margin: vertical horizontal
       return {
-        marginVertical: parts[0],
-        marginHorizontal: parts[1],
+        marginTop: parts[0],
+        marginRight: parts[1],
+        marginBottom: parts[0],
+        marginLeft: parts[1],
+      };
+    } else if (parts.length === 3) {
+      // margin: top horizontal bottom
+      return {
+        marginTop: parts[0],
+        marginRight: parts[1],
+        marginBottom: parts[2],
+        marginLeft: parts[1],
       };
     } else if (parts.length === 4) {
       // margin: top right bottom left
@@ -202,6 +222,33 @@ function expandShorthand(
   }
 
   return null;
+}
+
+/** @internal Normalize one dynamic declaration into RN-compatible styles. */
+export function normalizeStyleDeclaration(
+  property: string,
+  value: any
+): Record<string, any> {
+  const normalizedValue = normalizeStyleProperty(property, value);
+
+  if (property !== 'padding' && property !== 'margin') {
+    return { [property]: normalizedValue };
+  }
+
+  if (typeof normalizedValue === 'string') {
+    const expanded = expandShorthand(property, normalizedValue);
+    if (expanded) {
+      return expanded;
+    }
+  }
+
+  const prefix = property === 'padding' ? 'padding' : 'margin';
+  return {
+    [`${prefix}Top`]: normalizedValue,
+    [`${prefix}Right`]: normalizedValue,
+    [`${prefix}Bottom`]: normalizedValue,
+    [`${prefix}Left`]: normalizedValue,
+  };
 }
 
 /**
